@@ -1,0 +1,60 @@
+# DocuMind
+
+DocuMind is a local-first PDF analysis workspace. It extracts text, tables, images, layout,
+and source coordinates, then answers questions with page-level evidence you can inspect.
+
+## Current milestone
+
+The first usable vertical slice includes:
+
+- safe PDF upload and persistent local document storage;
+- native text extraction with words, blocks, reading order, and bounding boxes;
+- image inventory and page rendering;
+- table detection through PyMuPDF when a page has ruled or structured tables;
+- lightweight layout labels (title, heading, paragraph, list, header, footer, image);
+- evidence-grounded lexical question answering with highlighted source regions;
+- a responsive document intelligence dashboard with no frontend build step.
+
+OCR is deliberately capability-detected. Native-text PDFs work with only Python and PyMuPDF;
+scanned pages are identified and expose an explicit OCR status. The next slice will connect the
+installed Tesseract binary and OpenCV preprocessing pipeline.
+
+## Run locally
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -e '.[dev]'
+.venv/bin/documind
+```
+
+Open <http://127.0.0.1:8000>. Data is written under `./data` by default. Override it with
+`DOCUMIND_DATA_DIR`, or choose another bind address with `DOCUMIND_HOST` and `DOCUMIND_PORT`.
+
+```bash
+.venv/bin/pytest
+.venv/bin/ruff check .
+```
+
+## HTTP API
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/health` | Runtime and extraction capabilities |
+| `GET` | `/api/documents` | List ingested documents |
+| `POST` | `/api/documents` | Upload raw PDF bytes; filename in `X-Filename` |
+| `GET` | `/api/documents/{id}` | Full structured extraction result |
+| `GET` | `/api/documents/{id}/pages/{n}.png` | Render a page |
+| `POST` | `/api/documents/{id}/questions` | Ask a question and receive cited regions |
+| `DELETE` | `/api/documents/{id}` | Delete one local document |
+
+## Design principles
+
+1. Evidence is data, not decoration. Every extracted element keeps its page and PDF coordinate box.
+2. Processing is deterministic before it is clever. More capable models can replace individual
+   stages without changing the stored document contract.
+3. Local by default. Uploaded files do not leave the machine.
+4. Capability gaps are visible. Missing OCR, malformed pages, and partial extraction are reported.
+
+See [ROADMAP.md](ROADMAP.md) for the staged plan and [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md)
+for the dependency-origin and license policy.
+
