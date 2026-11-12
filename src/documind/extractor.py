@@ -8,6 +8,9 @@ from typing import Any
 
 import pymupdf
 
+from .ocr import extract_ocr_regions, ocr_available
+from .relationships import infer_relationships
+
 
 def _box(value: Any) -> list[float]:
     """Return a stable, JSON-safe PDF coordinate box."""
@@ -60,6 +63,7 @@ def extract_pdf(pdf_path: Path, *, document_id: str, filename: str) -> dict[str,
     total_text = 0
     total_images = 0
     total_tables = 0
+    ocr_applied_pages = 0
     document_warnings: list[str] = []
 
     with pymupdf.open(stream=file_bytes, filetype="pdf") as document:
@@ -135,7 +139,26 @@ def extract_pdf(pdf_path: Path, *, document_id: str, filename: str) -> dict[str,
             page_text = "\n".join(r["text"] for r in regions if r["text"])
             needs_ocr = len(page_text.strip()) < 20 and image_area / page_area > 0.45
             if needs_ocr:
-                warnings.append("Page appears scanned; OCR is not enabled in this build")
+                if ocr_available():
+                    try:
+                        ocr_regions = extract_ocr_regions(page)
+                        for ocr_region in ocr_regions:
+                            ocr_region["id"] = f"region-{page_index + 1}-ocr-{len(regions) + 1}"
+                            ocr_region["reading_order"] = len(regions)
+                            regions.append(ocr_region)
+                        if ocr_regions:
+                            ocr_applied_pages += 1
+                            recognized = "\n".join(region["text"] for region in ocr_regions)
+                            page_text = recognized
+                            total_text += len(recognized)
+                            needs_ocr = False
+                        else:
+                            warnings.append("Tesseract found no text on this scanned page")
+                    except (RuntimeError, OSError, TimeoutError) as exc:
+                        warnings.append(f"OCR failed: {exc}")
+                else:
+                    warnings.append("Page appears scanned; install Tesseract to enable OCR")
+            relationships = infer_relationships(page_index + 1, regions, images, tables)
             pages.append(
                 {
                     "number": page_index + 1,
@@ -146,7 +169,9 @@ def extract_pdf(pdf_path: Path, *, document_id: str, filename: str) -> dict[str,
                     "regions": regions,
                     "images": images,
                     "tables": tables,
+                    "relationships": relationships,
                     "needs_ocr": needs_ocr,
+                    "ocr_applied": any(region.get("source") == "tesseract" for region in regions),
                     "warnings": warnings,
                 }
             )
@@ -156,7 +181,7 @@ def extract_pdf(pdf_path: Path, *, document_id: str, filename: str) -> dict[str,
     if not total_text:
         document_warnings.append("No machine-readable text was found")
     return {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "id": document_id,
         "filename": filename,
         "sha256": hashlib.sha256(file_bytes).hexdigest(),
@@ -169,7 +194,9 @@ def extract_pdf(pdf_path: Path, *, document_id: str, filename: str) -> dict[str,
             "character_count": total_text,
             "image_count": total_images,
             "table_count": total_tables,
-            "ocr_pages": sum(page["needs_ocr"] for page in pages),
+            "ocr_pages": ocr_applied_pages,
+            "ocr_required_pages": sum(page["needs_ocr"] for page in pages),
+            "relationship_count": sum(len(page["relationships"]) for page in pages),
         },
         "warnings": document_warnings,
         "pages": pages,

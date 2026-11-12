@@ -21,13 +21,14 @@ def test_extracts_text_layout_and_coordinates(tmp_path: Path) -> None:
 
     result = extract_pdf(path, document_id="a" * 32, filename="results.pdf")
 
-    assert result["schema_version"] == "1.0"
+    assert result["schema_version"] == "1.1"
     assert result["summary"]["page_count"] == 1
     assert result["summary"]["character_count"] > 50
     assert "Quarterly Results" in result["pages"][0]["text"]
     assert result["pages"][0]["regions"][0]["type"] == "title"
     assert len(result["pages"][0]["regions"][0]["bbox"]) == 4
     assert result["pages"][0]["needs_ocr"] is False
+    assert result["summary"]["relationship_count"] >= 1
 
 
 def test_rejects_password_protected_pdf(tmp_path: Path) -> None:
