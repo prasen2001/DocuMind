@@ -20,6 +20,7 @@ def infer_relationships(
     regions: list[dict[str, Any]],
     images: list[dict[str, Any]],
     tables: list[dict[str, Any]],
+    charts: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Create deterministic reading-order and caption relationships."""
     relationships: list[dict[str, Any]] = []
@@ -38,6 +39,7 @@ def infer_relationships(
     visual_targets = [
         *(dict(item, target_type="image") for item in images),
         *(dict(item, target_type="table") for item in tables),
+        *(dict(item, target_type="chart") for item in (charts or [])),
     ]
     for region in text_regions:
         if not CAPTION_RE.match(region["text"].strip()) or not visual_targets:

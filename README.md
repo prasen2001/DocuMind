@@ -14,6 +14,7 @@ The current usable vertical slice includes:
 - lightweight layout labels (title, heading, paragraph, list, header, footer, image);
 - optional Tesseract OCR for scanned pages, with confidence and source coordinates;
 - deterministic reading-order and caption-to-figure/table relationships;
+- vector chart detection with titles, labels, numeric values, and source boxes;
 - evidence-grounded lexical question answering with highlighted source regions;
 - side-by-side multi-document comparison with isolated evidence per document;
 - a responsive document intelligence dashboard with no frontend build step.
@@ -53,7 +54,8 @@ Open <http://127.0.0.1:8000>. Data is written under `./data` by default. Overrid
 | `DELETE` | `/api/documents/{id}` | Delete one local document |
 
 The stored document schema is currently `1.1`. Every page contains normalized regions, tables,
-images, and relationships. OCR regions include `source: "tesseract"` and a confidence score.
+images, charts, and relationships. OCR regions include `source: "tesseract"` and a confidence
+score; chart regions use `source: "vector-chart"`.
 
 ## Design principles
 

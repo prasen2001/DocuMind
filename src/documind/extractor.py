@@ -8,6 +8,7 @@ from typing import Any
 
 import pymupdf
 
+from .charts import extract_charts
 from .ocr import extract_ocr_regions, ocr_available
 from .relationships import infer_relationships
 
@@ -63,6 +64,7 @@ def extract_pdf(pdf_path: Path, *, document_id: str, filename: str) -> dict[str,
     total_text = 0
     total_images = 0
     total_tables = 0
+    total_charts = 0
     ocr_applied_pages = 0
     document_warnings: list[str] = []
 
@@ -128,8 +130,10 @@ def extract_pdf(pdf_path: Path, *, document_id: str, filename: str) -> dict[str,
                 )
 
             tables, warnings = _extract_tables(page)
+            charts = extract_charts(page, regions)
             total_images += len(images)
             total_tables += len(tables)
+            total_charts += len(charts)
             image_area = sum(
                 max(0, image["bbox"][2] - image["bbox"][0])
                 * max(0, image["bbox"][3] - image["bbox"][1])
@@ -158,7 +162,24 @@ def extract_pdf(pdf_path: Path, *, document_id: str, filename: str) -> dict[str,
                         warnings.append(f"OCR failed: {exc}")
                 else:
                     warnings.append("Page appears scanned; install Tesseract to enable OCR")
-            relationships = infer_relationships(page_index + 1, regions, images, tables)
+            relationships = infer_relationships(page_index + 1, regions, images, tables, charts)
+            for chart in charts:
+                chart_text = " ".join(
+                    part for part in [chart["title"], *chart["labels"]] if part
+                ).strip()
+                if chart_text:
+                    regions.append(
+                        {
+                            "id": f"region-{page_index + 1}-chart-{len(regions) + 1}",
+                            "type": "chart",
+                            "bbox": chart["bbox"],
+                            "text": chart_text,
+                            "font_size": 0,
+                            "reading_order": len(regions),
+                            "source": "vector-chart",
+                            "chart_id": chart["id"],
+                        }
+                    )
             pages.append(
                 {
                     "number": page_index + 1,
@@ -169,6 +190,7 @@ def extract_pdf(pdf_path: Path, *, document_id: str, filename: str) -> dict[str,
                     "regions": regions,
                     "images": images,
                     "tables": tables,
+                    "charts": charts,
                     "relationships": relationships,
                     "needs_ocr": needs_ocr,
                     "ocr_applied": any(region.get("source") == "tesseract" for region in regions),
@@ -194,6 +216,7 @@ def extract_pdf(pdf_path: Path, *, document_id: str, filename: str) -> dict[str,
             "character_count": total_text,
             "image_count": total_images,
             "table_count": total_tables,
+            "chart_count": total_charts,
             "ocr_pages": ocr_applied_pages,
             "ocr_required_pages": sum(page["needs_ocr"] for page in pages),
             "relationship_count": sum(len(page["relationships"]) for page in pages),

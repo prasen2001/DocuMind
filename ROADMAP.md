@@ -7,7 +7,7 @@ The milestones are vertical slices: each one leaves the application runnable and
 | 1 | Upload PDF and extract text | Complete | Native and optional OCR text retain page and source boxes |
 | 2 | Detect and extract tables | Foundation | PyMuPDF table output is normalized; harder cases need CV |
 | 3 | Identify document layout | Foundation | Region labels, reading order, and caption relationships |
-| 4 | Extract information from charts | Planned | Chart regions, axes, legends, series, and values |
+| 4 | Extract information from charts | Foundation | Vector chart regions, labels, values, and evidence boxes |
 | 5 | Ask questions about documents | Foundation | Local lexical retrieval with abstention |
 | 6 | Highlight source regions | Foundation | Answer citations map onto rendered page coordinates |
 | 7 | Compare multiple documents | Foundation | Parallel retrieval preserves independent citations |

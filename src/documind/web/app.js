@@ -104,7 +104,8 @@ function renderActiveDocument() {
   $("#page-count").textContent = doc.summary.page_count;
   $("#document-stats").innerHTML = [
     [doc.summary.page_count, "Pages"], [doc.summary.table_count, "Tables"],
-    [doc.summary.image_count, "Images"], [doc.summary.ocr_required_pages ?? doc.summary.ocr_pages, "OCR needed"],
+    [doc.summary.chart_count ?? 0, "Charts"], [doc.summary.image_count, "Images"],
+    [doc.summary.ocr_required_pages ?? doc.summary.ocr_pages, "OCR needed"],
   ].map(([value, label]) => `<div class="stat"><strong>${value}</strong><small>${label}</small></div>`).join("");
   $("#answer-result").classList.add("hidden");
   $("#answer-empty").classList.remove("hidden");
@@ -123,6 +124,7 @@ function renderPage() {
   renderHighlights(page);
   renderStructure(page);
   renderTables(page);
+  renderCharts(page);
 }
 
 function renderHighlights(page) {
@@ -150,10 +152,22 @@ function renderTables(page) {
     </div>`).join("") : `<div class="empty-state">No tables were detected on page ${page.number}.</div>`;
 }
 
+function renderCharts(page) {
+  const charts = page.charts || [];
+  $("#charts-view").innerHTML = charts.length ? charts.map((chart, index) => `
+    <article class="chart-card">
+      <div class="eyebrow">Chart ${index + 1}</div>
+      <h4>${escapeHtml(chart.title || `${chart.type} chart`)}</h4>
+      <div class="chart-meta">${escapeHtml(chart.type)} · ${Math.round(chart.confidence * 100)}% confidence · ${chart.drawing_count} vector elements</div>
+      <p>${escapeHtml(chart.labels.join(" · "))}</p>
+      <div class="chart-values">${chart.values.map(value => `<span class="chart-value">${escapeHtml(value.raw)}</span>`).join("")}</div>
+    </article>`).join("") : `<div class="empty-state">No vector charts were detected on page ${page.number}.</div>`;
+}
+
 function switchView(view) {
   state.view = view;
   $$(".tab").forEach(tab => tab.classList.toggle("active", tab.dataset.view === view));
-  ["page", "structure", "tables"].forEach(name => $(`#${name}-view`).classList.toggle("hidden", name !== view));
+  ["page", "structure", "tables", "charts"].forEach(name => $(`#${name}-view`).classList.toggle("hidden", name !== view));
 }
 
 async function ask(question) {
