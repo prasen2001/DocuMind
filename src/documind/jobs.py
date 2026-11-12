@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from typing import Any
@@ -17,12 +18,19 @@ def _now() -> str:
 class IngestionJobs:
     """Bounded in-process ingestion queue with observable job and metric state."""
 
-    def __init__(self, store: DocumentStore, *, workers: int = 2) -> None:
+    def __init__(
+        self,
+        store: DocumentStore,
+        *,
+        workers: int = 2,
+        on_complete: Callable[[dict[str, Any]], object] | None = None,
+    ) -> None:
         self.store = store
         self._executor = ThreadPoolExecutor(
             max_workers=max(1, workers), thread_name_prefix="ingest"
         )
         self._lock = threading.Lock()
+        self._on_complete = on_complete
         self._jobs: dict[str, dict[str, Any]] = {}
         self._metrics: dict[str, float] = {
             "jobs_submitted": 0,
@@ -78,6 +86,8 @@ class IngestionJobs:
         self._update(job_id, status="processing")
         try:
             document = self.store.ingest(payload, filename)
+            if self._on_complete:
+                self._on_complete(document)
         except Exception as exc:  # noqa: BLE001 - job failures are captured as state
             elapsed = (time.perf_counter() - started) * 1000
             with self._lock:

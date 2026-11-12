@@ -63,6 +63,7 @@
               <div id="search-results" class="search-results hidden"></div>
             </form>
             <div class="header-actions">
+              <button id="review-open" class="compare-header-button">Review <span id="review-count">0</span></button>
               <button id="compare-header-open" class="compare-header-button">Compare</button>
               <div id="document-stats" class="document-stats"></div>
             </div>
@@ -128,6 +129,16 @@
           <button type="submit">Compare</button>
         </form>
         <div id="compare-results" class="compare-results"></div>
+      </div>
+    </div>
+    <div id="review-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="review-title">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div><div class="eyebrow">Human review</div><h2 id="review-title">Evidence needing attention</h2></div>
+          <button id="review-close" class="modal-close" aria-label="Close reviews">×</button>
+        </div>
+        <p class="modal-intro">Low-confidence extraction stays separate from trusted evidence until an analyst records a decision.</p>
+        <div id="review-list" class="review-list"></div>
       </div>
     </div>
     <div id="toast" class="toast hidden" role="status"></div>

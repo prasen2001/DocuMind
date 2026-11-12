@@ -154,6 +154,13 @@ td { border: 1px solid var(--line); padding: 7px; }
 .compare-result h4 { margin: 0 0 7px; font: 17px Georgia, serif; }
 .compare-result p { margin: 0 0 9px; color: var(--muted); font: 13px/1.5 Georgia, serif; }
 .compare-citation { border: 0; background: transparent; color: var(--moss); padding: 0; cursor: pointer; text-decoration: underline; font-size: 10px; }
+.review-item { display: grid; grid-template-columns: 1fr auto; gap: 12px; padding: 15px 2px; border-bottom: 1px solid var(--line); }
+.review-item h4 { margin: 3px 0 6px; font: 17px Georgia, serif; }
+.review-item p { margin: 0; color: var(--muted); font-size: 11px; }
+.review-actions { display: flex; align-items: center; gap: 6px; }
+.review-actions button { border: 1px solid var(--line); border-radius: 5px; background: white; padding: 7px 9px; cursor: pointer; font-size: 10px; }
+.review-actions button:first-child { border-color: var(--moss); color: var(--moss); }
+.priority-high { color: #9b3d2f; }
 
 @media (max-width: 900px) {
   .workspace { grid-template-columns: 1fr; }

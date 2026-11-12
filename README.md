@@ -57,6 +57,8 @@ docker compose up --build
 | `GET` | `/api/jobs/{id}` | Poll ingestion status |
 | `GET` | `/api/search?q=...` | Search evidence across all documents |
 | `GET` | `/api/metrics` | Pipeline throughput, failures, latency, and queue depth |
+| `GET` | `/api/reviews?status=pending` | List evidence awaiting human review |
+| `POST` | `/api/reviews/{id}/decision` | Record an approved or rejected review decision |
 | `GET` | `/api/documents/{id}` | Full structured extraction result |
 | `GET` | `/api/documents/{id}/pages/{n}.png` | Render a page |
 | `POST` | `/api/documents/{id}/questions` | Ask a question and receive cited regions |
@@ -78,6 +80,11 @@ score; chart regions use `source: "vector-chart"`.
 The dashboard uses asynchronous ingestion by default. `DOCUMIND_WORKERS` controls the bounded
 worker pool (default `2`). Metrics are process-local in this stage; a production deployment should
 export them to durable monitoring before running multiple replicas.
+
+Human-review tasks are created automatically for pages still requiring OCR, extraction warnings,
+OCR regions below 75% confidence, and chart regions below 65% confidence. Decisions persist in
+`reviews.json` with reviewer, note, and timestamp fields and can be opened directly on the cited
+page region from the dashboard.
 
 See [ROADMAP.md](ROADMAP.md) for the staged plan and [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md)
 for the dependency-origin and license policy.

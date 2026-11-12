@@ -47,6 +47,14 @@ async function loadDocuments(selectFirst = true) {
   renderDocumentList();
   if (selectFirst && !state.active && state.documents.length) await selectDocument(state.documents[0].id);
   if (!state.documents.length) showWelcome();
+  loadReviewCount();
+}
+
+async function loadReviewCount() {
+  try {
+    const result = await api("/api/reviews?status=pending");
+    $("#review-count").textContent = result.reviews.length;
+  } catch (_) { $("#review-count").textContent = "–"; }
 }
 
 function renderDocumentList() {
@@ -265,6 +273,37 @@ async function runComparison() {
   finally { button.disabled = false; button.textContent = "Compare"; }
 }
 
+async function openReviews() {
+  try {
+    const result = await api("/api/reviews?status=pending");
+    $("#review-list").innerHTML = result.reviews.length ? result.reviews.map(review => `
+      <article class="review-item" data-review="${review.id}">
+        <div><div class="eyebrow priority-${review.priority}">${escapeHtml(review.priority)} priority · ${escapeHtml(review.issue_type)}</div>
+          <h4>${escapeHtml(review.filename)} · Page ${review.page}</h4><p>${escapeHtml(review.detail || "Manual verification requested")}</p></div>
+        <div class="review-actions"><button data-decision="approved">Approve</button><button data-decision="rejected">Reject</button><button data-open="true">View</button></div>
+      </article>`).join("") : `<div class="empty-state">No evidence is waiting for review.</div>`;
+    result.reviews.forEach(review => {
+      const card = $(`[data-review="${review.id}"]`);
+      if (!card) return;
+      card.querySelector("[data-open]").addEventListener("click", async () => {
+        await selectDocument(review.document_id); state.page = review.page;
+        state.citations = [{ page: review.page, bbox: review.bbox, region_id: review.region_id }];
+        switchView("page"); renderPage(); $("#review-modal").classList.add("hidden");
+      });
+      card.querySelectorAll("[data-decision]").forEach(button => button.addEventListener("click", async () => {
+        try {
+          await api(`/api/reviews/${review.id}/decision`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ decision: button.dataset.decision }),
+          });
+          card.remove(); await loadReviewCount(); toast(`Review ${button.dataset.decision}`);
+        } catch (error) { toast(error.message); }
+      }));
+    });
+    $("#review-modal").classList.remove("hidden");
+  } catch (error) { toast(error.message); }
+}
+
 $("#file-input").addEventListener("change", event => upload(event.target.files[0]));
 $("#sidebar-file").addEventListener("change", event => upload(event.target.files[0]));
 const dropzone = $("#dropzone");
@@ -283,6 +322,9 @@ $("#search-form").addEventListener("submit", event => { event.preventDefault(); 
 $("#compare-close").addEventListener("click", () => $("#compare-modal").classList.add("hidden"));
 $("#compare-modal").addEventListener("click", event => { if (event.target === $("#compare-modal")) $("#compare-modal").classList.add("hidden"); });
 $("#compare-form").addEventListener("submit", event => { event.preventDefault(); runComparison(); });
+$("#review-open").addEventListener("click", openReviews);
+$("#review-close").addEventListener("click", () => $("#review-modal").classList.add("hidden"));
+$("#review-modal").addEventListener("click", event => { if (event.target === $("#review-modal")) $("#review-modal").classList.add("hidden"); });
 
 loadDocuments().catch(error => { showWelcome(); toast(`Could not load workspace: ${error.message}`); });
 

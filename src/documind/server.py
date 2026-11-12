@@ -17,6 +17,7 @@ from .compare import compare_documents
 from .jobs import IngestionJobs
 from .ocr import ocr_available
 from .qa import answer_question
+from .reviews import ReviewQueue
 from .search import search_documents
 from .storage import DocumentStore
 
@@ -30,7 +31,12 @@ class DocuMindServer(ThreadingHTTPServer):
     def __init__(self, address: tuple[str, int], store: DocumentStore) -> None:
         super().__init__(address, DocuMindHandler)
         self.store = store
-        self.jobs = IngestionJobs(store, workers=int(os.environ.get("DOCUMIND_WORKERS", "2")))
+        self.reviews = ReviewQueue(store.root / "reviews.json")
+        self.jobs = IngestionJobs(
+            store,
+            workers=int(os.environ.get("DOCUMIND_WORKERS", "2")),
+            on_complete=self.reviews.create_for_document,
+        )
 
     def server_close(self) -> None:
         self.jobs.shutdown()
@@ -80,6 +86,9 @@ class DocuMindHandler(BaseHTTPRequestHandler):
                         "document_count": len(self.server.store.list()),
                     }
                 )
+            elif path == "/api/reviews":
+                status = parse_qs(parsed.query).get("status", [None])[0]
+                self._json({"reviews": self.server.reviews.list(status=status)})
             elif path.startswith("/api/documents/"):
                 self._get_document_route(path)
             else:
@@ -94,11 +103,13 @@ class DocuMindHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
+        parts = self._parts(path)
         try:
             if path == "/api/documents":
                 payload = self._body(MAX_UPLOAD_BYTES)
                 filename = unquote(self.headers.get("X-Filename", "document.pdf"))
                 document = self.server.store.ingest(payload, filename)
+                self.server.reviews.create_for_document(document)
                 self._json(document, HTTPStatus.CREATED)
                 return
             if path == "/api/jobs":
@@ -116,7 +127,16 @@ class DocuMindHandler(BaseHTTPRequestHandler):
                 ]
                 self._json(compare_documents(documents, str(request.get("question", ""))))
                 return
-            parts = self._parts(path)
+            if len(parts) == 4 and parts[:2] == ["api", "reviews"] and parts[3] == "decision":
+                request = json.loads(self._body(64 * 1024))
+                review = self.server.reviews.decide(
+                    parts[2],
+                    decision=str(request.get("decision", "")),
+                    note=str(request.get("note", "")),
+                    reviewer=str(request.get("reviewer", "local-user")),
+                )
+                self._json(review)
+                return
             if len(parts) == 4 and parts[:2] == ["api", "documents"] and parts[3] == "questions":
                 request = json.loads(self._body(64 * 1024))
                 question = str(request.get("question", "")).strip()
