@@ -11,6 +11,9 @@ organization. Transitive dependencies are reviewed separately before production 
 | Tesseract | Optional OCR engine | Apache-2.0 | Created at HP; later developed at Google | Allowed |
 | OpenCV | Optional image preprocessing | Apache-2.0 | Began at Intel Research; U.S. foundation | Allowed |
 | NumPy | OpenCV array bridge | BSD-3-Clause | Created in 2005 by U.S.-based project founder Travis Oliphant | Allowed |
+| PyTorch | Optional semantic inference | BSD-3-Clause | Created and open-sourced by Meta; Linux Foundation stewardship | Optional |
+| Transformers | Optional MiniLM model runtime | Apache-2.0 | Hugging Face, founded in New York, U.S. | Optional |
+| Microsoft MiniLM | Optional contextual text encoder | MIT | Microsoft Research | Optional |
 
 PyMuPDF's AGPL license is important: a deployed network service may need to provide corresponding
 source code. Organizations unable to meet those terms must obtain a commercial license or approve

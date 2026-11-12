@@ -20,6 +20,7 @@ from .ocr import ocr_available
 from .qa import answer_question
 from .reviews import ReviewQueue
 from .search import search_documents
+from .semantic import SemanticUnavailable, semantic_available, semantic_search_documents
 from .storage import DocumentStore
 from .vision import vision_available
 
@@ -65,6 +66,7 @@ class DocuMindHandler(BaseHTTPRequestHandler):
                             "ocr": ocr_available(),
                             "computer_vision": vision_available(),
                             "question_answering": "lexical",
+                            "semantic_search": semantic_available(),
                         },
                     }
                 )
@@ -82,6 +84,11 @@ class DocuMindHandler(BaseHTTPRequestHandler):
                 limit = int(parse_qs(parsed.query).get("limit", ["20"])[0])
                 documents = [self.server.store.get(item["id"]) for item in self.server.store.list()]
                 self._json(search_documents(documents, query, limit=limit))
+            elif path == "/api/semantic-search":
+                query = parse_qs(parsed.query).get("q", [""])[0].strip()
+                limit = int(parse_qs(parsed.query).get("limit", ["20"])[0])
+                documents = [self.server.store.get(item["id"]) for item in self.server.store.list()]
+                self._json(semantic_search_documents(documents, query, limit=limit))
             elif path == "/api/metrics":
                 self._json(
                     {
@@ -100,6 +107,8 @@ class DocuMindHandler(BaseHTTPRequestHandler):
             self._error(HTTPStatus.NOT_FOUND, "Resource not found")
         except ValueError as exc:
             self._error(HTTPStatus.BAD_REQUEST, str(exc))
+        except SemanticUnavailable as exc:
+            self._error(HTTPStatus.SERVICE_UNAVAILABLE, str(exc))
         except Exception:
             LOGGER.exception("Unhandled GET request")
             self._error(HTTPStatus.INTERNAL_SERVER_ERROR, "The request could not be completed")

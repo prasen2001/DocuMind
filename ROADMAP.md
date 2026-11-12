@@ -39,7 +39,8 @@ document set. Store model-derived claims separately from deterministic extractio
 
 ### Phase 5 — production engineering
 
-The local service now has a bounded asynchronous ingestion queue, cross-document region search,
+The local service now has a bounded asynchronous ingestion queue, lexical region search, optional
+MiniLM contextual vector search,
 pipeline metrics, and a container with health checking. Splitting workers from the API,
 PostgreSQL-backed metadata, a durable U.S.-origin queue, access control, retention policies,
 tracing and evaluation dashboards remain. Persistent local review jobs and auditable decisions

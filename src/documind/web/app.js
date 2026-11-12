@@ -1,4 +1,4 @@
-const state = { documents: [], active: null, page: 1, view: "page", citations: [] };
+const state = { documents: [], active: null, page: 1, view: "page", citations: [], capabilities: {} };
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
@@ -48,6 +48,11 @@ async function loadDocuments(selectFirst = true) {
   if (selectFirst && !state.active && state.documents.length) await selectDocument(state.documents[0].id);
   if (!state.documents.length) showWelcome();
   loadReviewCount();
+}
+
+async function loadCapabilities() {
+  const health = await api("/api/health");
+  state.capabilities = health.capabilities || {};
 }
 
 async function loadReviewCount() {
@@ -233,7 +238,8 @@ async function ask(question) {
 async function runSearch(query) {
   if (!query.trim()) { $("#search-results").classList.add("hidden"); return; }
   try {
-    const result = await api(`/api/search?q=${encodeURIComponent(query)}&limit=12`);
+    const route = state.capabilities.semantic_search ? "/api/semantic-search" : "/api/search";
+    const result = await api(`${route}?q=${encodeURIComponent(query)}&limit=12`);
     const panel = $("#search-results");
     panel.innerHTML = result.matches.length ? result.matches.map(match => `
       <button class="search-result" data-document="${match.document_id}" data-page="${match.page}" data-region="${match.region_id}" data-bbox="${match.bbox.join(",")}">
@@ -336,5 +342,5 @@ $("#review-open").addEventListener("click", openReviews);
 $("#review-close").addEventListener("click", () => $("#review-modal").classList.add("hidden"));
 $("#review-modal").addEventListener("click", event => { if (event.target === $("#review-modal")) $("#review-modal").classList.add("hidden"); });
 
-loadDocuments().catch(error => { showWelcome(); toast(`Could not load workspace: ${error.message}`); });
+Promise.all([loadCapabilities(), loadDocuments()]).catch(error => { showWelcome(); toast(`Could not load workspace: ${error.message}`); });
 
