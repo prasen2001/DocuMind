@@ -196,9 +196,27 @@ function renderCharts(page) {
 
 function renderImages(page) {
   $("#images-view").innerHTML = page.images.length ? `<div class="image-grid">${page.images.map(image => `
-    <article class="image-card"><img src="/api/documents/${state.active.id}/images/${image.id}" alt="Extracted image on page ${page.number}" loading="lazy">
-      <div><strong>${escapeHtml(image.id)}</strong><small>${image.width} × ${image.height} px · ${escapeHtml(image.extension)}</small></div>
+    <article class="image-card" data-image-card="${image.id}"><img src="/api/documents/${state.active.id}/images/${image.id}" alt="Extracted image on page ${page.number}" loading="lazy">
+      <div><strong>${escapeHtml(image.id)}</strong><small>${image.width} × ${image.height} px · ${escapeHtml(image.extension)}</small>
+      ${state.capabilities.multimodal ? `<button class="image-analyze" data-image-analyze="${image.id}">Analyze image</button><p class="image-insight"></p>` : ""}</div>
     </article>`).join("")}</div>` : `<div class="empty-state">No embedded images were found on page ${page.number}.</div>`;
+  $$('[data-image-analyze]').forEach(button => button.addEventListener("click", () => analyzeVisual(button.dataset.imageAnalyze)));
+}
+
+async function analyzeVisual(imageId) {
+  const button = $(`[data-image-analyze="${imageId}"]`);
+  const insight = button.parentElement.querySelector(".image-insight");
+  button.disabled = true; button.textContent = "Analyzing…";
+  try {
+    const result = await api(`/api/documents/${state.active.id}/images/${imageId}/analyze`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ task: "regions" }),
+    });
+    const labels = result.objects.map(object => object.label).filter(Boolean);
+    insight.textContent = result.caption || labels.join(" · ") || "No visual claims were produced.";
+    state.citations = result.objects.map(object => ({ page: state.page, bbox: object.bbox }));
+    renderHighlights(state.active.pages[state.page - 1]);
+  } catch (error) { insight.textContent = error.message; }
+  finally { button.disabled = false; button.textContent = "Analyze again"; }
 }
 
 function switchView(view) {

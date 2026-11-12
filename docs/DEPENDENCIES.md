@@ -14,6 +14,7 @@ organization. Transitive dependencies are reviewed separately before production 
 | PyTorch | Optional semantic inference | BSD-3-Clause | Created and open-sourced by Meta; Linux Foundation stewardship | Optional |
 | Transformers | Optional MiniLM model runtime | Apache-2.0 | Hugging Face, founded in New York, U.S. | Optional |
 | Microsoft MiniLM | Optional contextual text encoder | MIT | Microsoft Research | Optional |
+| Microsoft Florence-2 | Optional visual captioning and grounding | MIT | Microsoft Research | Optional |
 
 PyMuPDF's AGPL license is important: a deployed network service may need to provide corresponding
 source code. Organizations unable to meet those terms must obtain a commercial license or approve

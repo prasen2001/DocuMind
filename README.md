@@ -40,6 +40,17 @@ on first use:
 DOCUMIND_ENABLE_SEMANTIC=1 .venv/bin/documind
 ```
 
+Optional visual captioning and grounded object/region detection use Microsoft Florence-2 (MIT).
+Model-authored code is disabled unless explicitly allowed:
+
+```bash
+.venv/bin/pip install -e '.[multimodal]'
+DOCUMIND_ENABLE_MULTIMODAL=1 .venv/bin/documind
+```
+
+If the installed Transformers version cannot run Florence-2 natively, review the pinned model
+revision before setting `DOCUMIND_ALLOW_MODEL_CODE=1`.
+
 ## Run locally
 
 ```bash

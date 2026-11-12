@@ -34,8 +34,10 @@ text–image relationships. Layout models must plug into the existing region con
 
 ### Phase 4 — multimodal intelligence
 
-Introduce a U.S.-origin, open-source vision-language model only after evaluation on a versioned
-document set. Store model-derived claims separately from deterministic extraction.
+An optional Microsoft Florence-2 adapter now supports image captioning, object detection, dense
+region captions, and PDF-coordinate grounding. It is disabled by default; model-derived claims
+remain separate from deterministic extraction and are explicitly marked for source review. A
+versioned multimodal evaluation set remains before enabling it by default.
 
 ### Phase 5 — production engineering
 

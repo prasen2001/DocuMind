@@ -116,6 +116,8 @@ h1 em { color: var(--moss); font-weight: 400; }
 .image-card div { padding: 9px; }
 .image-card strong, .image-card small { display: block; }
 .image-card small { color: var(--muted); margin-top: 3px; }
+.image-analyze { margin-top: 8px; border: 1px solid var(--moss); border-radius: 5px; background: white; color: var(--moss); padding: 6px 8px; cursor: pointer; font-size: 9px; text-transform: uppercase; letter-spacing: .08em; }
+.image-insight { margin-top: 7px; color: var(--ink); font: 11px/1.4 Georgia, serif; }
 table { border-collapse: collapse; width: 100%; font-size: 11px; }
 td { border: 1px solid var(--line); padding: 7px; }
 .empty-state { color: var(--muted); text-align: center; padding: 55px 20px; font: 16px Georgia, serif; }

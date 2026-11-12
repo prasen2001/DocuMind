@@ -16,6 +16,7 @@ from . import __version__
 from .assets import extract_image_asset
 from .compare import compare_documents
 from .jobs import IngestionJobs
+from .multimodal import MultimodalUnavailable, analyze_image, multimodal_available
 from .ocr import ocr_available
 from .qa import answer_question
 from .reviews import ReviewQueue
@@ -67,6 +68,7 @@ class DocuMindHandler(BaseHTTPRequestHandler):
                             "computer_vision": vision_available(),
                             "question_answering": "lexical",
                             "semantic_search": semantic_available(),
+                            "multimodal": multimodal_available(),
                         },
                     }
                 )
@@ -139,6 +141,33 @@ class DocuMindHandler(BaseHTTPRequestHandler):
                 ]
                 self._json(compare_documents(documents, str(request.get("question", ""))))
                 return
+            if (
+                len(parts) == 6
+                and parts[:2] == ["api", "documents"]
+                and parts[3] == "images"
+                and parts[5] == "analyze"
+            ):
+                request = json.loads(self._body(64 * 1024))
+                document = self.server.store.get(parts[2])
+                for page in document.get("pages", []):
+                    image = next(
+                        (item for item in page.get("images", []) if item["id"] == parts[4]), None
+                    )
+                    if image:
+                        payload, _ = extract_image_asset(
+                            self.server.store.source_path(parts[2]),
+                            page_number=page["number"],
+                            image=image,
+                        )
+                        self._json(
+                            analyze_image(
+                                payload,
+                                image,
+                                task=str(request.get("task", "caption")),
+                            )
+                        )
+                        return
+                raise FileNotFoundError(parts[4])
             if len(parts) == 4 and parts[:2] == ["api", "reviews"] and parts[3] == "decision":
                 request = json.loads(self._body(64 * 1024))
                 review = self.server.reviews.decide(
@@ -162,6 +191,8 @@ class DocuMindHandler(BaseHTTPRequestHandler):
             self._error(HTTPStatus.BAD_REQUEST, str(exc))
         except FileNotFoundError:
             self._error(HTTPStatus.NOT_FOUND, "Document not found")
+        except MultimodalUnavailable as exc:
+            self._error(HTTPStatus.SERVICE_UNAVAILABLE, str(exc))
         except pymupdf.FileDataError:
             self._error(HTTPStatus.UNPROCESSABLE_ENTITY, "The PDF is damaged or unsupported")
         except Exception:
