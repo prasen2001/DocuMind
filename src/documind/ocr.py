@@ -19,19 +19,23 @@ def ocr_available() -> bool:
     return tesseract_path() is not None
 
 
-def extract_ocr_regions(page: pymupdf.Page, *, scale: float = 2.0) -> list[dict[str, Any]]:
+def extract_ocr_regions(
+    page: pymupdf.Page, *, scale: float = 2.0, image_bytes: bytes | None = None
+) -> list[dict[str, Any]]:
     """Recognize a page and map Tesseract TSV coordinates back into PDF points."""
     executable = tesseract_path()
     if executable is None:
         return []
 
-    pixmap = page.get_pixmap(
-        matrix=pymupdf.Matrix(scale, scale), alpha=False, colorspace=pymupdf.csRGB
-    )
+    if image_bytes is None:
+        pixmap = page.get_pixmap(
+            matrix=pymupdf.Matrix(scale, scale), alpha=False, colorspace=pymupdf.csRGB
+        )
+        image_bytes = pixmap.tobytes("png")
     try:
         completed = subprocess.run(
             [executable, "stdin", "stdout", "-l", "eng", "--psm", "3", "tsv"],
-            input=pixmap.tobytes("png"),
+            input=image_bytes,
             capture_output=True,
             check=False,
             timeout=90,

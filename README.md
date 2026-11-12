@@ -13,6 +13,7 @@ The current usable vertical slice includes:
 - table detection through PyMuPDF when a page has ruled or structured tables;
 - lightweight layout labels (title, heading, paragraph, list, header, footer, image);
 - optional Tesseract OCR for scanned pages, with confidence and source coordinates;
+- OpenCV deskewing, adaptive thresholding, and structural-line diagnostics before OCR;
 - deterministic reading-order and caption-to-figure/table relationships;
 - vector chart detection with titles, labels, numeric values, and source boxes;
 - evidence-grounded lexical question answering with highlighted source regions;
@@ -23,6 +24,12 @@ OCR is capability-detected. Native-text PDFs work with only Python and PyMuPDF. 
 `tesseract` executable is installed, scanned pages are rendered at high resolution, recognized,
 and mapped back to PDF coordinates. Without it, scanned pages remain available for review and
 carry an explicit `needs_ocr` status.
+
+Install the reviewed vision extras for OpenCV preprocessing:
+
+```bash
+.venv/bin/pip install -e '.[vision]'
+```
 
 ## Run locally
 

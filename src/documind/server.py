@@ -20,6 +20,7 @@ from .qa import answer_question
 from .reviews import ReviewQueue
 from .search import search_documents
 from .storage import DocumentStore
+from .vision import vision_available
 
 LOGGER = logging.getLogger("documind")
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
@@ -61,6 +62,7 @@ class DocuMindHandler(BaseHTTPRequestHandler):
                             "layout": True,
                             "page_rendering": True,
                             "ocr": ocr_available(),
+                            "computer_vision": vision_available(),
                             "question_answering": "lexical",
                         },
                     }

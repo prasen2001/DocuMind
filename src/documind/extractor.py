@@ -11,6 +11,7 @@ import pymupdf
 from .charts import extract_charts
 from .ocr import extract_ocr_regions, ocr_available
 from .relationships import infer_relationships
+from .vision import preprocess_page
 
 
 def _box(value: Any) -> list[float]:
@@ -66,6 +67,7 @@ def extract_pdf(pdf_path: Path, *, document_id: str, filename: str) -> dict[str,
     total_tables = 0
     total_charts = 0
     ocr_applied_pages = 0
+    preprocessed_pages = 0
     document_warnings: list[str] = []
 
     with pymupdf.open(stream=file_bytes, filetype="pdf") as document:
@@ -142,10 +144,25 @@ def extract_pdf(pdf_path: Path, *, document_id: str, filename: str) -> dict[str,
             page_area = max(1, page.rect.width * page.rect.height)
             page_text = "\n".join(r["text"] for r in regions if r["text"])
             needs_ocr = len(page_text.strip()) < 20 and image_area / page_area > 0.45
+            preprocessing: dict[str, Any] | None = None
             if needs_ocr:
+                try:
+                    prepared = preprocess_page(page)
+                except (RuntimeError, ValueError) as exc:
+                    prepared = None
+                    warnings.append(f"Image preprocessing failed: {exc}")
+                if prepared:
+                    preprocessed_pages += 1
+                    preprocessing = {
+                        key: value for key, value in prepared.items() if key != "image"
+                    }
                 if ocr_available():
                     try:
-                        ocr_regions = extract_ocr_regions(page)
+                        ocr_regions = extract_ocr_regions(
+                            page,
+                            scale=prepared["scale"] if prepared else 2.0,
+                            image_bytes=prepared["image"] if prepared else None,
+                        )
                         for ocr_region in ocr_regions:
                             ocr_region["id"] = f"region-{page_index + 1}-ocr-{len(regions) + 1}"
                             ocr_region["reading_order"] = len(regions)
@@ -194,6 +211,7 @@ def extract_pdf(pdf_path: Path, *, document_id: str, filename: str) -> dict[str,
                     "relationships": relationships,
                     "needs_ocr": needs_ocr,
                     "ocr_applied": any(region.get("source") == "tesseract" for region in regions),
+                    "preprocessing": preprocessing,
                     "warnings": warnings,
                 }
             )
@@ -219,6 +237,7 @@ def extract_pdf(pdf_path: Path, *, document_id: str, filename: str) -> dict[str,
             "chart_count": total_charts,
             "ocr_pages": ocr_applied_pages,
             "ocr_required_pages": sum(page["needs_ocr"] for page in pages),
+            "preprocessed_pages": preprocessed_pages,
             "relationship_count": sum(len(page["relationships"]) for page in pages),
         },
         "warnings": document_warnings,

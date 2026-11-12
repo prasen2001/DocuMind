@@ -22,8 +22,9 @@ and regression tests are implemented. Preprocessing profiles and a larger golden
 
 ### Phase 2 — computer vision
 
-Use OpenCV for deskew, denoise, adaptive thresholding, contour detection, and bounding-box
-normalization. Retain intermediate diagnostics for human review.
+OpenCV deskew, adaptive thresholding, line morphology, contour detection, and PDF-coordinate
+normalization are implemented for scanned pages. Diagnostics are retained alongside each page;
+denoising profiles and CV-assisted cell reconstruction remain.
 
 ### Phase 3 — layout understanding
 

@@ -22,7 +22,7 @@ def test_applies_ocr_to_scanned_page(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(
         extractor,
         "extract_ocr_regions",
-        lambda page: [
+        lambda page, **kwargs: [
             {
                 "type": "ocr_text",
                 "bbox": [20, 30, 250, 50],
@@ -38,6 +38,8 @@ def test_applies_ocr_to_scanned_page(tmp_path: Path, monkeypatch) -> None:
 
     assert result["summary"]["ocr_pages"] == 1
     assert result["summary"]["ocr_required_pages"] == 0
+    assert result["summary"]["preprocessed_pages"] == 1
     assert result["pages"][0]["ocr_applied"] is True
     assert result["pages"][0]["text"] == "Recognized scanned evidence"
     assert result["pages"][0]["regions"][-1]["confidence"] == 94.5
+    assert result["pages"][0]["preprocessing"]["steps"][0] == "grayscale"

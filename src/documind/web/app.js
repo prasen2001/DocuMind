@@ -164,7 +164,9 @@ function renderStructure(page) {
   const relationships = page.relationships?.length ? `<div class="eyebrow" style="margin-top:24px">Relationships</div>${page.relationships.map(link => `
     <div class="region-card"><span>${escapeHtml(link.type)}</span><p>${escapeHtml(link.source_id)} → ${escapeHtml(link.target_id)} · ${Math.round(link.confidence * 100)}%</p></div>
   `).join("")}` : "";
-  $("#structure-view").innerHTML = regions + relationships;
+  const preprocessing = page.preprocessing ? `<div class="eyebrow" style="margin-top:24px">Preprocessing</div>
+    <div class="region-card"><span>OpenCV</span><p>${escapeHtml(page.preprocessing.steps.join(" → "))}\nSkew: ${page.preprocessing.skew_degrees}° · Structural boxes: ${page.preprocessing.structure_boxes.length}</p></div>` : "";
+  $("#structure-view").innerHTML = regions + relationships + preprocessing;
 }
 
 function renderTables(page) {
