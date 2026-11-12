@@ -7,7 +7,7 @@ import threading
 from collections.abc import Sequence
 from typing import Any, Protocol
 
-DEFAULT_MODEL = "microsoft/MiniLM-L12-H384-uncased"
+DEFAULT_MODEL = "nomic-ai/nomic-embed-text-v1.5"
 
 
 class SemanticUnavailable(RuntimeError):
@@ -26,8 +26,10 @@ def semantic_available() -> bool:
     )
 
 
-class MiniLMEncoder:
-    """Lazy Microsoft MiniLM mean-pooling encoder."""
+class NomicEncoder:
+    """Lazy Nomic retrieval encoder with task-aware mean pooling."""
+
+    task_prefixes = True
 
     def __init__(self, model_name: str = DEFAULT_MODEL) -> None:
         if not semantic_available():
@@ -38,8 +40,9 @@ class MiniLMEncoder:
         from transformers import AutoModel, AutoTokenizer
 
         self.torch = torch
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModel.from_pretrained(model_name)
+        local_only = os.environ.get("DOCUMIND_MODEL_LOCAL_ONLY", "0") == "1"
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, local_files_only=local_only)
+        self.model = AutoModel.from_pretrained(model_name, local_files_only=local_only)
         self.model.eval()
 
     def encode(self, texts: Sequence[str]) -> list[list[float]]:
@@ -55,15 +58,15 @@ class MiniLMEncoder:
         return pooled.cpu().tolist()
 
 
-_encoder: MiniLMEncoder | None = None
+_encoder: NomicEncoder | None = None
 _encoder_lock = threading.Lock()
 
 
-def default_encoder() -> MiniLMEncoder:
+def default_encoder() -> NomicEncoder:
     global _encoder
     with _encoder_lock:
         if _encoder is None:
-            _encoder = MiniLMEncoder(os.environ.get("DOCUMIND_SEMANTIC_MODEL", DEFAULT_MODEL))
+            _encoder = NomicEncoder(os.environ.get("DOCUMIND_SEMANTIC_MODEL", DEFAULT_MODEL))
         return _encoder
 
 
@@ -83,7 +86,7 @@ def semantic_search_documents(
 ) -> dict[str, Any]:
     query = query.strip()
     if not query:
-        return {"query": query, "matches": [], "total": 0, "method": "minilm-vector-search"}
+        return {"query": query, "matches": [], "total": 0, "method": "semantic-vector-search"}
     corpus: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]] = []
     for document in documents:
         for page in document.get("pages", []):
@@ -91,10 +94,13 @@ def semantic_search_documents(
                 if region.get("text", "").strip():
                     corpus.append((document, page, region))
     if not corpus:
-        return {"query": query, "matches": [], "total": 0, "method": "minilm-vector-search"}
+        return {"query": query, "matches": [], "total": 0, "method": "semantic-vector-search"}
 
     selected_encoder = encoder or default_encoder()
-    vectors = selected_encoder.encode([query, *(region["text"] for _, _, region in corpus)])
+    texts = [query, *(region["text"] for _, _, region in corpus)]
+    if getattr(selected_encoder, "task_prefixes", False):
+        texts = [f"search_query: {texts[0]}", *(f"search_document: {text}" for text in texts[1:])]
+    vectors = selected_encoder.encode(texts)
     if len(vectors) != len(corpus) + 1:
         raise ValueError("Semantic encoder returned an unexpected vector count")
     query_vector = vectors[0]
@@ -120,6 +126,6 @@ def semantic_search_documents(
         "query": query,
         "matches": matches[: max(1, min(limit, 100))],
         "total": len(matches),
-        "method": "minilm-vector-search",
+        "method": "semantic-vector-search",
         "model": os.environ.get("DOCUMIND_SEMANTIC_MODEL", DEFAULT_MODEL),
     }

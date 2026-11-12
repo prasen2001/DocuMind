@@ -42,7 +42,7 @@ versioned multimodal evaluation set remains before enabling it by default.
 ### Phase 5 — production engineering
 
 The local service now has a bounded asynchronous ingestion queue, lexical region search, optional
-MiniLM contextual vector search,
+Nomic contextual vector search,
 pipeline metrics, and a container with health checking. Splitting workers from the API,
 PostgreSQL-backed metadata, a durable U.S.-origin queue, access control, retention policies,
 tracing and evaluation dashboards remain. Persistent local review jobs and auditable decisions

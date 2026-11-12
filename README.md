@@ -32,14 +32,17 @@ Install the reviewed vision extras for OpenCV preprocessing:
 .venv/bin/pip install -e '.[vision]'
 ```
 
-Optional semantic retrieval uses the MIT-licensed Microsoft MiniLM checkpoint through the
-open-source PyTorch/Transformers stack. It is disabled by default because the model is downloaded
-on first use:
+Optional semantic retrieval uses the Apache-licensed Nomic Embed Text v1.5 checkpoint through the
+open-source PyTorch/Transformers stack. Nomic was founded in New York City. The model is disabled
+by default because it is downloaded on first use:
 
 ```bash
 .venv/bin/pip install -e '.[semantic]'
 DOCUMIND_ENABLE_SEMANTIC=1 .venv/bin/documind
 ```
+
+For an offline deployment after the model is cached, also set
+`DOCUMIND_MODEL_LOCAL_ONLY=1` to prevent registry checks.
 
 Optional visual captioning and grounded object/region detection use Microsoft Florence-2 (MIT).
 Model-authored code is disabled unless explicitly allowed:
@@ -84,7 +87,7 @@ docker compose up --build
 | `POST` | `/api/jobs` | Queue asynchronous PDF ingestion |
 | `GET` | `/api/jobs/{id}` | Poll ingestion status |
 | `GET` | `/api/search?q=...` | Search evidence across all documents |
-| `GET` | `/api/semantic-search?q=...` | Optional MiniLM vector search with evidence boxes |
+| `GET` | `/api/semantic-search?q=...` | Optional Nomic vector search with evidence boxes |
 | `GET` | `/api/metrics` | Pipeline throughput, failures, latency, and queue depth |
 | `GET` | `/api/reviews?status=pending` | List evidence awaiting human review |
 | `POST` | `/api/reviews/{id}/decision` | Record an approved or rejected review decision |
