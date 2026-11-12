@@ -9,7 +9,7 @@ The current usable vertical slice includes:
 
 - safe PDF upload and persistent local document storage;
 - native text extraction with words, blocks, reading order, and bounding boxes;
-- image inventory and page rendering;
+- embedded-image extraction with clipped-render fallback and page rendering;
 - table detection through PyMuPDF when a page has ruled or structured tables;
 - lightweight layout labels (title, heading, paragraph, list, header, footer, image);
 - optional Tesseract OCR for scanned pages, with confidence and source coordinates;

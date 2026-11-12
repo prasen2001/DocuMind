@@ -147,6 +147,7 @@ function renderPage() {
   renderStructure(page);
   renderTables(page);
   renderCharts(page);
+  renderImages(page);
 }
 
 function renderHighlights(page) {
@@ -188,10 +189,17 @@ function renderCharts(page) {
     </article>`).join("") : `<div class="empty-state">No vector charts were detected on page ${page.number}.</div>`;
 }
 
+function renderImages(page) {
+  $("#images-view").innerHTML = page.images.length ? `<div class="image-grid">${page.images.map(image => `
+    <article class="image-card"><img src="/api/documents/${state.active.id}/images/${image.id}" alt="Extracted image on page ${page.number}" loading="lazy">
+      <div><strong>${escapeHtml(image.id)}</strong><small>${image.width} × ${image.height} px · ${escapeHtml(image.extension)}</small></div>
+    </article>`).join("")}</div>` : `<div class="empty-state">No embedded images were found on page ${page.number}.</div>`;
+}
+
 function switchView(view) {
   state.view = view;
   $$(".tab").forEach(tab => tab.classList.toggle("active", tab.dataset.view === view));
-  ["page", "structure", "tables", "charts"].forEach(name => $(`#${name}-view`).classList.toggle("hidden", name !== view));
+  ["page", "structure", "tables", "charts", "images"].forEach(name => $(`#${name}-view`).classList.toggle("hidden", name !== view));
 }
 
 async function ask(question) {

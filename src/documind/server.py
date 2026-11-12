@@ -13,6 +13,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 import pymupdf
 
 from . import __version__
+from .assets import extract_image_asset
 from .compare import compare_documents
 from .jobs import IngestionJobs
 from .ocr import ocr_available
@@ -179,6 +180,21 @@ class DocuMindHandler(BaseHTTPRequestHandler):
             page_number = int(parts[4][:-4])
             self._render_page(parts[2], page_number)
             return
+        if len(parts) == 5 and parts[3] == "images":
+            document = self.server.store.get(parts[2])
+            for page in document.get("pages", []):
+                image = next(
+                    (item for item in page.get("images", []) if item["id"] == parts[4]), None
+                )
+                if image:
+                    payload, content_type = extract_image_asset(
+                        self.server.store.source_path(parts[2]),
+                        page_number=page["number"],
+                        image=image,
+                    )
+                    self._bytes(payload, content_type, cache="private, max-age=3600")
+                    return
+            raise FileNotFoundError(parts[4])
         raise FileNotFoundError(path)
 
     def _render_page(self, document_id: str, page_number: int) -> None:

@@ -76,12 +76,23 @@ def extract_pdf(pdf_path: Path, *, document_id: str, filename: str) -> dict[str,
 
         for page_index, page in enumerate(document):
             page_dict = page.get_text("dict", sort=True)
+            image_info = page.get_image_info(xrefs=True)
             regions: list[dict[str, Any]] = []
             images: list[dict[str, Any]] = []
 
             for block_index, block in enumerate(page_dict.get("blocks", [])):
                 bbox = _box(block.get("bbox"))
                 if block.get("type") == 1:
+                    block_rect = pymupdf.Rect(bbox)
+                    matching_image = min(
+                        image_info,
+                        key=lambda info: (
+                            abs(pymupdf.Rect(info["bbox"]).get_area() - block_rect.get_area())
+                            + abs(pymupdf.Rect(info["bbox"]).x0 - block_rect.x0)
+                            + abs(pymupdf.Rect(info["bbox"]).y0 - block_rect.y0)
+                        ),
+                        default={},
+                    )
                     images.append(
                         {
                             "id": f"image-{page_index + 1}-{len(images) + 1}",
@@ -89,6 +100,7 @@ def extract_pdf(pdf_path: Path, *, document_id: str, filename: str) -> dict[str,
                             "width": int(block.get("width", 0)),
                             "height": int(block.get("height", 0)),
                             "extension": block.get("ext", "unknown"),
+                            "xref": int(matching_image.get("xref", 0)),
                         }
                     )
                     regions.append(
