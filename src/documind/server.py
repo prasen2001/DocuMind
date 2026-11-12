@@ -8,14 +8,16 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib.resources import files
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 import pymupdf
 
 from . import __version__
 from .compare import compare_documents
+from .jobs import IngestionJobs
 from .ocr import ocr_available
 from .qa import answer_question
+from .search import search_documents
 from .storage import DocumentStore
 
 LOGGER = logging.getLogger("documind")
@@ -28,13 +30,19 @@ class DocuMindServer(ThreadingHTTPServer):
     def __init__(self, address: tuple[str, int], store: DocumentStore) -> None:
         super().__init__(address, DocuMindHandler)
         self.store = store
+        self.jobs = IngestionJobs(store, workers=int(os.environ.get("DOCUMIND_WORKERS", "2")))
+
+    def server_close(self) -> None:
+        self.jobs.shutdown()
+        super().server_close()
 
 
 class DocuMindHandler(BaseHTTPRequestHandler):
     server: DocuMindServer
 
     def do_GET(self) -> None:
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
         try:
             if path == "/api/health":
                 self._json(
@@ -53,12 +61,33 @@ class DocuMindHandler(BaseHTTPRequestHandler):
                 )
             elif path == "/api/documents":
                 self._json({"documents": self.server.store.list()})
+            elif path == "/api/jobs":
+                self._json({"jobs": self.server.jobs.list()})
+            elif path.startswith("/api/jobs/"):
+                parts = self._parts(path)
+                if len(parts) != 3:
+                    raise FileNotFoundError(path)
+                self._json(self.server.jobs.get(parts[2]))
+            elif path == "/api/search":
+                query = parse_qs(parsed.query).get("q", [""])[0].strip()
+                limit = int(parse_qs(parsed.query).get("limit", ["20"])[0])
+                documents = [self.server.store.get(item["id"]) for item in self.server.store.list()]
+                self._json(search_documents(documents, query, limit=limit))
+            elif path == "/api/metrics":
+                self._json(
+                    {
+                        **self.server.jobs.metrics(),
+                        "document_count": len(self.server.store.list()),
+                    }
+                )
             elif path.startswith("/api/documents/"):
                 self._get_document_route(path)
             else:
                 self._static(path)
         except FileNotFoundError:
             self._error(HTTPStatus.NOT_FOUND, "Resource not found")
+        except ValueError as exc:
+            self._error(HTTPStatus.BAD_REQUEST, str(exc))
         except Exception:
             LOGGER.exception("Unhandled GET request")
             self._error(HTTPStatus.INTERNAL_SERVER_ERROR, "The request could not be completed")
@@ -71,6 +100,11 @@ class DocuMindHandler(BaseHTTPRequestHandler):
                 filename = unquote(self.headers.get("X-Filename", "document.pdf"))
                 document = self.server.store.ingest(payload, filename)
                 self._json(document, HTTPStatus.CREATED)
+                return
+            if path == "/api/jobs":
+                payload = self._body(MAX_UPLOAD_BYTES)
+                filename = unquote(self.headers.get("X-Filename", "document.pdf"))
+                self._json(self.server.jobs.submit(payload, filename), HTTPStatus.ACCEPTED)
                 return
             if path == "/api/compare":
                 request = json.loads(self._body(128 * 1024))

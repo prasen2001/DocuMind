@@ -35,6 +35,12 @@ python3 -m venv .venv
 Open <http://127.0.0.1:8000>. Data is written under `./data` by default. Override it with
 `DOCUMIND_DATA_DIR`, or choose another bind address with `DOCUMIND_HOST` and `DOCUMIND_PORT`.
 
+For the containerized service with Tesseract OCR included:
+
+```bash
+docker compose up --build
+```
+
 ```bash
 .venv/bin/pytest
 .venv/bin/ruff check .
@@ -47,6 +53,10 @@ Open <http://127.0.0.1:8000>. Data is written under `./data` by default. Overrid
 | `GET` | `/api/health` | Runtime and extraction capabilities |
 | `GET` | `/api/documents` | List ingested documents |
 | `POST` | `/api/documents` | Upload raw PDF bytes; filename in `X-Filename` |
+| `POST` | `/api/jobs` | Queue asynchronous PDF ingestion |
+| `GET` | `/api/jobs/{id}` | Poll ingestion status |
+| `GET` | `/api/search?q=...` | Search evidence across all documents |
+| `GET` | `/api/metrics` | Pipeline throughput, failures, latency, and queue depth |
 | `GET` | `/api/documents/{id}` | Full structured extraction result |
 | `GET` | `/api/documents/{id}/pages/{n}.png` | Render a page |
 | `POST` | `/api/documents/{id}/questions` | Ask a question and receive cited regions |
@@ -64,6 +74,10 @@ score; chart regions use `source: "vector-chart"`.
    stages without changing the stored document contract.
 3. Local by default. Uploaded files do not leave the machine.
 4. Capability gaps are visible. Missing OCR, malformed pages, and partial extraction are reported.
+
+The dashboard uses asynchronous ingestion by default. `DOCUMIND_WORKERS` controls the bounded
+worker pool (default `2`). Metrics are process-local in this stage; a production deployment should
+export them to durable monitoring before running multiple replicas.
 
 See [ROADMAP.md](ROADMAP.md) for the staged plan and [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md)
 for the dependency-origin and license policy.

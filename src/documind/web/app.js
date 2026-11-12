@@ -29,6 +29,18 @@ function toast(message) {
   toast.timeout = setTimeout(() => element.classList.add("hidden"), 3200);
 }
 
+const pause = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+
+async function waitForJob(jobId) {
+  for (let attempt = 0; attempt < 1200; attempt++) {
+    const job = await api(`/api/jobs/${jobId}`);
+    if (job.status === "ready") return job;
+    if (job.status === "failed") throw new Error(job.error || "Document processing failed");
+    await pause(250);
+  }
+  throw new Error("Document processing did not finish within five minutes");
+}
+
 async function loadDocuments(selectFirst = true) {
   const result = await api("/api/documents");
   state.documents = result.documents;
@@ -67,11 +79,13 @@ async function upload(file) {
   $("#welcome-error").classList.add("hidden");
   $("#upload-progress").classList.remove("hidden");
   try {
-    const document = await api("/api/documents", {
+    const job = await api("/api/jobs", {
       method: "POST",
       headers: { "Content-Type": "application/pdf", "X-Filename": encodeURIComponent(file.name) },
       body: file,
     });
+    const completed = await waitForJob(job.id);
+    const document = await api(`/api/documents/${completed.document_id}`);
     state.active = document;
     state.page = 1;
     await loadDocuments(false);
@@ -198,6 +212,26 @@ async function ask(question) {
   finally { submit.disabled = false; submit.textContent = "→"; }
 }
 
+async function runSearch(query) {
+  if (!query.trim()) { $("#search-results").classList.add("hidden"); return; }
+  try {
+    const result = await api(`/api/search?q=${encodeURIComponent(query)}&limit=12`);
+    const panel = $("#search-results");
+    panel.innerHTML = result.matches.length ? result.matches.map(match => `
+      <button class="search-result" data-document="${match.document_id}" data-page="${match.page}" data-region="${match.region_id}" data-bbox="${match.bbox.join(",")}">
+        <strong>${escapeHtml(match.filename)} · Page ${match.page}</strong>
+        <small>${escapeHtml(match.quote.slice(0, 150))}</small>
+      </button>`).join("") : `<div class="empty-state" style="padding:18px">No matching evidence.</div>`;
+    panel.classList.remove("hidden");
+    $$(".search-result").forEach(button => button.addEventListener("click", async () => {
+      await selectDocument(button.dataset.document);
+      state.page = Number(button.dataset.page);
+      state.citations = [{ page: state.page, region_id: button.dataset.region, bbox: button.dataset.bbox.split(",").map(Number) }];
+      switchView("page"); renderPage(); panel.classList.add("hidden");
+    }));
+  } catch (error) { toast(error.message); }
+}
+
 function openComparison() {
   $("#compare-documents").innerHTML = state.documents.map((doc, index) => `
     <label class="compare-choice"><input type="checkbox" value="${doc.id}" ${index < 2 ? "checked" : ""}>
@@ -241,6 +275,7 @@ $("#prev-page").addEventListener("click", () => { if (state.page > 1) { state.pa
 $("#next-page").addEventListener("click", () => { if (state.page < state.active.pages.length) { state.page++; renderPage(); } });
 $$(".tab").forEach(tab => tab.addEventListener("click", () => switchView(tab.dataset.view)));
 $("#question-form").addEventListener("submit", event => { event.preventDefault(); ask($("#question").value); });
+$("#search-form").addEventListener("submit", event => { event.preventDefault(); runSearch($("#search-query").value); });
 [$("#compare-open"), $("#compare-header-open")].forEach(button => button.addEventListener("click", () => {
   if (state.documents.length < 2) { toast("Upload at least two documents to compare"); return; }
   openComparison();

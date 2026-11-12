@@ -11,7 +11,7 @@ The milestones are vertical slices: each one leaves the application runnable and
 | 5 | Ask questions about documents | Foundation | Local lexical retrieval with abstention |
 | 6 | Highlight source regions | Foundation | Answer citations map onto rendered page coordinates |
 | 7 | Compare multiple documents | Foundation | Parallel retrieval preserves independent citations |
-| 8 | Complete intelligence dashboard | In progress | Ingestion, viewer, evidence, jobs, review, monitoring |
+| 8 | Complete intelligence dashboard | In progress | Async ingestion, search, evidence, comparison, metrics |
 
 ## Phases
 
@@ -37,6 +37,8 @@ document set. Store model-derived claims separately from deterministic extractio
 
 ### Phase 5 — production engineering
 
-Split the local worker from the API, add PostgreSQL-backed metadata, Redis-compatible queues,
-vector search, access control, retention policies, tracing, evaluation dashboards, and review jobs.
+The local service now has a bounded asynchronous ingestion queue, cross-document region search,
+pipeline metrics, and a container with health checking. Splitting workers from the API,
+PostgreSQL-backed metadata, a durable U.S.-origin queue, access control, retention policies,
+tracing, evaluation dashboards, and review jobs remain.
 

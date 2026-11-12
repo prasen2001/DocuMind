@@ -1,0 +1,14 @@
+services:
+  documind:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DOCUMIND_WORKERS: "2"
+    volumes:
+      - documind-data:/data
+    restart: unless-stopped
+
+volumes:
+  documind-data:
+
