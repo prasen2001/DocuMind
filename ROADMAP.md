@@ -5,7 +5,7 @@ The milestones are vertical slices: each one leaves the application runnable and
 | Milestone | Deliverable | Status | Acceptance signal |
 | --- | --- | --- | --- |
 | 1 | Upload PDF and extract text | Complete | Native and optional OCR text retain page and source boxes |
-| 2 | Detect and extract tables | Foundation | PyMuPDF table output is normalized; harder cases need CV |
+| 2 | Detect and extract tables | Foundation | Native vector and scanned OCR grid tables are normalized |
 | 3 | Identify document layout | Foundation | Region labels, reading order, and caption relationships |
 | 4 | Extract information from charts | Foundation | Vector chart regions, labels, values, and evidence boxes |
 | 5 | Ask questions about documents | Foundation | Local lexical retrieval with abstention |
@@ -23,8 +23,9 @@ and regression tests are implemented. Preprocessing profiles and a larger golden
 ### Phase 2 — computer vision
 
 OpenCV deskew, adaptive thresholding, line morphology, contour detection, and PDF-coordinate
-normalization are implemented for scanned pages. Diagnostics are retained alongside each page;
-denoising profiles and CV-assisted cell reconstruction remain.
+normalization are implemented for scanned pages. Diagnostics are retained alongside each page,
+and detected grid lines reconstruct OCR words into table cells. Denoising profiles and borderless
+table reconstruction remain.
 
 ### Phase 3 — layout understanding
 

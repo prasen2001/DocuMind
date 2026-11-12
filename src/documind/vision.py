@@ -66,20 +66,27 @@ def preprocess_page(page: pymupdf.Page, *, scale: float = 2.0) -> dict[str, Any]
     horizontal = cv2.morphologyEx(ink, cv2.MORPH_OPEN, horizontal_kernel)
     vertical = cv2.morphologyEx(ink, cv2.MORPH_OPEN, vertical_kernel)
     structure = cv2.bitwise_or(horizontal, vertical)
-    contours, _ = cv2.findContours(structure, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    structure_boxes: list[list[float]] = []
-    for contour in contours:
-        x, y, width, height = cv2.boundingRect(contour)
-        if width * height < 80 or max(width, height) < 20:
-            continue
-        structure_boxes.append(
-            [
-                round(x / scale, 2),
-                round(y / scale, 2),
-                round((x + width) / scale, 2),
-                round((y + height) / scale, 2),
-            ]
-        )
+
+    def contour_boxes(mask: Any, *, minimum_area: int = 80) -> list[list[float]]:
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        boxes: list[list[float]] = []
+        for contour in contours:
+            x, y, width, height = cv2.boundingRect(contour)
+            if width * height < minimum_area or max(width, height) < 20:
+                continue
+            boxes.append(
+                [
+                    round(x / scale, 2),
+                    round(y / scale, 2),
+                    round((x + width) / scale, 2),
+                    round((y + height) / scale, 2),
+                ]
+            )
+        return boxes
+
+    structure_boxes = contour_boxes(structure)
+    horizontal_lines = contour_boxes(horizontal, minimum_area=30)
+    vertical_lines = contour_boxes(vertical, minimum_area=30)
 
     success, encoded = cv2.imencode(".png", binary)
     if not success:
@@ -89,6 +96,8 @@ def preprocess_page(page: pymupdf.Page, *, scale: float = 2.0) -> dict[str, Any]
         "scale": scale,
         "skew_degrees": round(skew, 3),
         "structure_boxes": structure_boxes,
+        "horizontal_lines": horizontal_lines,
+        "vertical_lines": vertical_lines,
         "render_width": int(gray.shape[1]),
         "render_height": int(gray.shape[0]),
         "steps": ["grayscale", "adaptive-threshold", "deskew", "line-morphology"],

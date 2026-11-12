@@ -172,7 +172,7 @@ function renderStructure(page) {
 
 function renderTables(page) {
   $("#tables-view").innerHTML = page.tables.length ? page.tables.map((table, index) => `
-    <div class="table-wrap"><div class="eyebrow">Table ${index + 1} · ${table.row_count} × ${table.column_count}</div>
+    <div class="table-wrap"><div class="eyebrow">Table ${index + 1} · ${table.row_count} × ${table.column_count} · ${escapeHtml(table.method || "detected")}</div>
       <table><tbody>${table.rows.map(row => `<tr>${row.map(cell => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table>
     </div>`).join("") : `<div class="empty-state">No tables were detected on page ${page.number}.</div>`;
 }

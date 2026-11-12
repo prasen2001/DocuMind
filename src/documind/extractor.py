@@ -11,6 +11,7 @@ import pymupdf
 from .charts import extract_charts
 from .ocr import extract_ocr_regions, ocr_available
 from .relationships import infer_relationships
+from .tables import extract_ocr_tables
 from .vision import preprocess_page
 
 
@@ -51,6 +52,7 @@ def _extract_tables(page: pymupdf.Page) -> tuple[list[dict[str, Any]], list[str]
                     "rows": [[cell or "" for cell in row] for row in rows],
                     "row_count": len(rows),
                     "column_count": max((len(row) for row in rows), default=0),
+                    "method": "pymupdf-vector",
                 }
             )
     except Exception as exc:  # noqa: BLE001 - malformed drawings must not abort extraction
@@ -191,6 +193,15 @@ def extract_pdf(pdf_path: Path, *, document_id: str, filename: str) -> dict[str,
                         warnings.append(f"OCR failed: {exc}")
                 else:
                     warnings.append("Page appears scanned; install Tesseract to enable OCR")
+            ocr_tables = extract_ocr_tables(
+                page_index + 1,
+                regions,
+                preprocessing,
+                start_index=len(tables),
+            )
+            if ocr_tables:
+                tables.extend(ocr_tables)
+                total_tables += len(ocr_tables)
             relationships = infer_relationships(page_index + 1, regions, images, tables, charts)
             for chart in charts:
                 chart_text = " ".join(

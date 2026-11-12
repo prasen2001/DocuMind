@@ -91,6 +91,19 @@ def extract_ocr_regions(
                 "font_size": 0,
                 "confidence": round(sum(word["confidence"] for word in words) / len(words), 2),
                 "source": "tesseract",
+                "words": [
+                    {
+                        "text": word["text"],
+                        "confidence": round(word["confidence"], 2),
+                        "bbox": [
+                            round(word["left"] / scale, 2),
+                            round(word["top"] / scale, 2),
+                            round((word["left"] + word["width"]) / scale, 2),
+                            round((word["top"] + word["height"]) / scale, 2),
+                        ],
+                    }
+                    for word in words
+                ],
             }
         )
     return sorted(regions, key=lambda region: (region["bbox"][1], region["bbox"][0]))
