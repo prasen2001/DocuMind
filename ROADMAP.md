@@ -4,21 +4,21 @@ The milestones are vertical slices: each one leaves the application runnable and
 
 | Milestone | Deliverable | Status | Acceptance signal |
 | --- | --- | --- | --- |
-| 1 | Upload PDF and extract text | In progress | Text blocks retain page and source boxes |
+| 1 | Upload PDF and extract text | Complete | Native and optional OCR text retain page and source boxes |
 | 2 | Detect and extract tables | Foundation | PyMuPDF table output is normalized; harder cases need CV |
-| 3 | Identify document layout | Foundation | Deterministic region labels and reading order |
+| 3 | Identify document layout | Foundation | Region labels, reading order, and caption relationships |
 | 4 | Extract information from charts | Planned | Chart regions, axes, legends, series, and values |
 | 5 | Ask questions about documents | Foundation | Local lexical retrieval with abstention |
 | 6 | Highlight source regions | Foundation | Answer citations map onto rendered page coordinates |
-| 7 | Compare multiple documents | Planned | Claim-aligned comparison with per-document evidence |
+| 7 | Compare multiple documents | Foundation | Parallel retrieval preserves independent citations |
 | 8 | Complete intelligence dashboard | In progress | Ingestion, viewer, evidence, jobs, review, monitoring |
 
 ## Phases
 
 ### Phase 1 — document processing
 
-Add native extraction, rendered page assets, OCR capability detection, preprocessing profiles,
-and golden-document regression tests.
+Native extraction, rendered page assets, OCR capability detection, Tesseract coordinate mapping,
+and regression tests are implemented. Preprocessing profiles and a larger golden corpus remain.
 
 ### Phase 2 — computer vision
 

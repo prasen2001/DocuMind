@@ -42,7 +42,10 @@
         <aside class="sidebar">
           <div class="sidebar-heading">
             <span>Documents</span>
-            <label class="icon-button" title="Add PDF">+<input id="sidebar-file" type="file" accept="application/pdf,.pdf"></label>
+            <div class="sidebar-actions">
+              <button id="compare-open" class="small-icon-button" title="Compare documents">⇄</button>
+              <label class="icon-button" title="Add PDF">+<input id="sidebar-file" type="file" accept="application/pdf,.pdf"></label>
+            </div>
           </div>
           <div id="document-list" class="document-list"></div>
           <div class="privacy-note"><span>⌂</span><div><strong>Private by default</strong><small>Files stay on this machine.</small></div></div>
@@ -54,7 +57,10 @@
               <div class="eyebrow">Active document</div>
               <h2 id="document-title">—</h2>
             </div>
-            <div id="document-stats" class="document-stats"></div>
+            <div class="header-actions">
+              <button id="compare-header-open" class="compare-header-button">Compare</button>
+              <div id="document-stats" class="document-stats"></div>
+            </div>
           </header>
 
           <div class="document-grid">
@@ -102,6 +108,21 @@
         </section>
       </section>
     </main>
+    <div id="compare-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="compare-title">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div><div class="eyebrow">Cross-document analysis</div><h2 id="compare-title">Compare with evidence</h2></div>
+          <button id="compare-close" class="modal-close" aria-label="Close comparison">×</button>
+        </div>
+        <p class="modal-intro">Choose two or more documents. DocuMind answers the same question independently so every claim retains its own citation.</p>
+        <div id="compare-documents" class="compare-documents"></div>
+        <form id="compare-form" class="compare-form">
+          <input id="compare-question" placeholder="What changed between these documents?" required>
+          <button type="submit">Compare</button>
+        </form>
+        <div id="compare-results" class="compare-results"></div>
+      </div>
+    </div>
     <div id="toast" class="toast hidden" role="status"></div>
     <script src="/app.js" defer></script>
   </body>

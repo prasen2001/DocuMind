@@ -104,7 +104,7 @@ function renderActiveDocument() {
   $("#page-count").textContent = doc.summary.page_count;
   $("#document-stats").innerHTML = [
     [doc.summary.page_count, "Pages"], [doc.summary.table_count, "Tables"],
-    [doc.summary.image_count, "Images"], [doc.summary.ocr_pages, "OCR needed"],
+    [doc.summary.image_count, "Images"], [doc.summary.ocr_required_pages ?? doc.summary.ocr_pages, "OCR needed"],
   ].map(([value, label]) => `<div class="stat"><strong>${value}</strong><small>${label}</small></div>`).join("");
   $("#answer-result").classList.add("hidden");
   $("#answer-empty").classList.remove("hidden");
@@ -134,9 +134,13 @@ function renderHighlights(page) {
 }
 
 function renderStructure(page) {
-  $("#structure-view").innerHTML = page.regions.length ? page.regions.map(region => `
+  const regions = page.regions.length ? page.regions.map(region => `
     <div class="region-card"><span>${escapeHtml(region.type)}</span><p>${escapeHtml(region.text || "[Embedded image]")}</p></div>
   `).join("") : `<div class="empty-state">No structured regions were found on this page.</div>`;
+  const relationships = page.relationships?.length ? `<div class="eyebrow" style="margin-top:24px">Relationships</div>${page.relationships.map(link => `
+    <div class="region-card"><span>${escapeHtml(link.type)}</span><p>${escapeHtml(link.source_id)} → ${escapeHtml(link.target_id)} · ${Math.round(link.confidence * 100)}%</p></div>
+  `).join("")}` : "";
+  $("#structure-view").innerHTML = regions + relationships;
 }
 
 function renderTables(page) {
@@ -180,6 +184,39 @@ async function ask(question) {
   finally { submit.disabled = false; submit.textContent = "→"; }
 }
 
+function openComparison() {
+  $("#compare-documents").innerHTML = state.documents.map((doc, index) => `
+    <label class="compare-choice"><input type="checkbox" value="${doc.id}" ${index < 2 ? "checked" : ""}>
+      <span>${escapeHtml(doc.filename)}<br><small>${doc.summary.page_count} pages</small></span></label>
+  `).join("");
+  $("#compare-results").innerHTML = "";
+  $("#compare-modal").classList.remove("hidden");
+}
+
+async function runComparison() {
+  const documentIds = $$("#compare-documents input:checked").map(input => input.value);
+  if (documentIds.length < 2) { toast("Choose at least two documents"); return; }
+  const button = $("#compare-form button");
+  button.disabled = true; button.textContent = "Comparing…";
+  try {
+    const result = await api("/api/compare", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ document_ids: documentIds, question: $("#compare-question").value }),
+    });
+    const common = result.common_terms.length ? `Shared terms: ${result.common_terms.join(", ")}` : "No shared terms were found across the grounded answers.";
+    $("#compare-results").innerHTML = `<div class="compare-summary">${result.grounded_document_count} of ${result.document_count} documents contain matching evidence. ${escapeHtml(common)}</div>
+      ${result.results.map(item => `<article class="compare-result"><h4>${escapeHtml(item.filename)}</h4><p>${escapeHtml(item.answer)}</p>
+        ${item.citations.map(citation => `<button class="compare-citation" data-document="${item.document_id}" data-page="${citation.page}">Page ${citation.page}: ${escapeHtml(citation.quote.slice(0, 90))}</button>`).join("<br>")}
+      </article>`).join("")}`;
+    $$(".compare-citation").forEach(citation => citation.addEventListener("click", async () => {
+      await selectDocument(citation.dataset.document);
+      state.page = Number(citation.dataset.page); renderPage();
+      $("#compare-modal").classList.add("hidden");
+    }));
+  } catch (error) { toast(error.message); }
+  finally { button.disabled = false; button.textContent = "Compare"; }
+}
+
 $("#file-input").addEventListener("change", event => upload(event.target.files[0]));
 $("#sidebar-file").addEventListener("change", event => upload(event.target.files[0]));
 const dropzone = $("#dropzone");
@@ -190,6 +227,13 @@ $("#prev-page").addEventListener("click", () => { if (state.page > 1) { state.pa
 $("#next-page").addEventListener("click", () => { if (state.page < state.active.pages.length) { state.page++; renderPage(); } });
 $$(".tab").forEach(tab => tab.addEventListener("click", () => switchView(tab.dataset.view)));
 $("#question-form").addEventListener("submit", event => { event.preventDefault(); ask($("#question").value); });
+[$("#compare-open"), $("#compare-header-open")].forEach(button => button.addEventListener("click", () => {
+  if (state.documents.length < 2) { toast("Upload at least two documents to compare"); return; }
+  openComparison();
+}));
+$("#compare-close").addEventListener("click", () => $("#compare-modal").classList.add("hidden"));
+$("#compare-modal").addEventListener("click", event => { if (event.target === $("#compare-modal")) $("#compare-modal").classList.add("hidden"); });
+$("#compare-form").addEventListener("submit", event => { event.preventDefault(); runComparison(); });
 
 loadDocuments().catch(error => { showWelcome(); toast(`Could not load workspace: ${error.message}`); });
 

@@ -5,19 +5,23 @@ and source coordinates, then answers questions with page-level evidence you can 
 
 ## Current milestone
 
-The first usable vertical slice includes:
+The current usable vertical slice includes:
 
 - safe PDF upload and persistent local document storage;
 - native text extraction with words, blocks, reading order, and bounding boxes;
 - image inventory and page rendering;
 - table detection through PyMuPDF when a page has ruled or structured tables;
 - lightweight layout labels (title, heading, paragraph, list, header, footer, image);
+- optional Tesseract OCR for scanned pages, with confidence and source coordinates;
+- deterministic reading-order and caption-to-figure/table relationships;
 - evidence-grounded lexical question answering with highlighted source regions;
+- side-by-side multi-document comparison with isolated evidence per document;
 - a responsive document intelligence dashboard with no frontend build step.
 
-OCR is deliberately capability-detected. Native-text PDFs work with only Python and PyMuPDF;
-scanned pages are identified and expose an explicit OCR status. The next slice will connect the
-installed Tesseract binary and OpenCV preprocessing pipeline.
+OCR is capability-detected. Native-text PDFs work with only Python and PyMuPDF. When the
+`tesseract` executable is installed, scanned pages are rendered at high resolution, recognized,
+and mapped back to PDF coordinates. Without it, scanned pages remain available for review and
+carry an explicit `needs_ocr` status.
 
 ## Run locally
 
@@ -45,7 +49,11 @@ Open <http://127.0.0.1:8000>. Data is written under `./data` by default. Overrid
 | `GET` | `/api/documents/{id}` | Full structured extraction result |
 | `GET` | `/api/documents/{id}/pages/{n}.png` | Render a page |
 | `POST` | `/api/documents/{id}/questions` | Ask a question and receive cited regions |
+| `POST` | `/api/compare` | Compare a question across two to ten documents |
 | `DELETE` | `/api/documents/{id}` | Delete one local document |
+
+The stored document schema is currently `1.1`. Every page contains normalized regions, tables,
+images, and relationships. OCR regions include `source: "tesseract"` and a confidence score.
 
 ## Design principles
 

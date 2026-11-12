@@ -13,6 +13,8 @@ from urllib.parse import unquote, urlparse
 import pymupdf
 
 from . import __version__
+from .compare import compare_documents
+from .ocr import ocr_available
 from .qa import answer_question
 from .storage import DocumentStore
 
@@ -44,7 +46,7 @@ class DocuMindHandler(BaseHTTPRequestHandler):
                             "tables": True,
                             "layout": True,
                             "page_rendering": True,
-                            "ocr": False,
+                            "ocr": ocr_available(),
                             "question_answering": "lexical",
                         },
                     }
@@ -69,6 +71,16 @@ class DocuMindHandler(BaseHTTPRequestHandler):
                 filename = unquote(self.headers.get("X-Filename", "document.pdf"))
                 document = self.server.store.ingest(payload, filename)
                 self._json(document, HTTPStatus.CREATED)
+                return
+            if path == "/api/compare":
+                request = json.loads(self._body(128 * 1024))
+                document_ids = request.get("document_ids", [])
+                if not isinstance(document_ids, list):
+                    raise ValueError("document_ids must be a list")
+                documents = [
+                    self.server.store.get(str(document_id)) for document_id in document_ids
+                ]
+                self._json(compare_documents(documents, str(request.get("question", ""))))
                 return
             parts = self._parts(path)
             if len(parts) == 4 and parts[:2] == ["api", "documents"] and parts[3] == "questions":
