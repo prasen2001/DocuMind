@@ -1,0 +1,176 @@
+from __future__ import annotations
+
+import hashlib
+import re
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+import pymupdf
+
+
+def _box(value: Any) -> list[float]:
+    """Return a stable, JSON-safe PDF coordinate box."""
+    if not value or len(value) != 4:
+        return [0.0, 0.0, 0.0, 0.0]
+    return [round(float(part), 2) for part in value]
+
+
+def _region_label(text: str, bbox: list[float], page_height: float, font_size: float) -> str:
+    stripped = text.strip()
+    y0, y1 = bbox[1], bbox[3]
+    if font_size >= 18:
+        return "title"
+    if y0 < page_height * 0.07:
+        return "header"
+    if y1 > page_height * 0.93:
+        return "footer"
+    if re.match(r"^(?:[•●▪◦*-]|\d+[.)])\s+", stripped):
+        return "list"
+    if font_size >= 13 or (len(stripped) < 90 and stripped.endswith(":")):
+        return "heading"
+    return "paragraph"
+
+
+def _extract_tables(page: pymupdf.Page) -> tuple[list[dict[str, Any]], list[str]]:
+    tables: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    try:
+        finder = page.find_tables()
+        for index, table in enumerate(finder.tables):
+            rows = table.extract()
+            tables.append(
+                {
+                    "id": f"table-{page.number + 1}-{index + 1}",
+                    "bbox": _box(table.bbox),
+                    "rows": [[cell or "" for cell in row] for row in rows],
+                    "row_count": len(rows),
+                    "column_count": max((len(row) for row in rows), default=0),
+                }
+            )
+    except Exception as exc:  # noqa: BLE001 - malformed drawings must not abort extraction
+        warnings.append(f"Table detection skipped: {type(exc).__name__}")
+    return tables, warnings
+
+
+def extract_pdf(pdf_path: Path, *, document_id: str, filename: str) -> dict[str, Any]:
+    """Extract a normalized, evidence-addressable representation from a PDF."""
+    file_bytes = pdf_path.read_bytes()
+    pages: list[dict[str, Any]] = []
+    total_text = 0
+    total_images = 0
+    total_tables = 0
+    document_warnings: list[str] = []
+
+    with pymupdf.open(stream=file_bytes, filetype="pdf") as document:
+        if document.needs_pass:
+            raise ValueError("Password-protected PDFs are not supported yet")
+
+        for page_index, page in enumerate(document):
+            page_dict = page.get_text("dict", sort=True)
+            regions: list[dict[str, Any]] = []
+            images: list[dict[str, Any]] = []
+
+            for block_index, block in enumerate(page_dict.get("blocks", [])):
+                bbox = _box(block.get("bbox"))
+                if block.get("type") == 1:
+                    images.append(
+                        {
+                            "id": f"image-{page_index + 1}-{len(images) + 1}",
+                            "bbox": bbox,
+                            "width": int(block.get("width", 0)),
+                            "height": int(block.get("height", 0)),
+                            "extension": block.get("ext", "unknown"),
+                        }
+                    )
+                    regions.append(
+                        {
+                            "id": f"region-{page_index + 1}-{block_index + 1}",
+                            "type": "image",
+                            "bbox": bbox,
+                            "text": "",
+                            "font_size": 0,
+                            "reading_order": len(regions),
+                        }
+                    )
+                    continue
+                if block.get("type") != 0:
+                    continue
+
+                lines: list[str] = []
+                max_font_size = 0.0
+                for line in block.get("lines", []):
+                    spans = line.get("spans", [])
+                    line_text = "".join(span.get("text", "") for span in spans).strip()
+                    if line_text:
+                        lines.append(line_text)
+                    max_font_size = max(
+                        max_font_size,
+                        max((float(span.get("size", 0)) for span in spans), default=0),
+                    )
+                text = "\n".join(lines).strip()
+                if not text:
+                    continue
+                total_text += len(text)
+                regions.append(
+                    {
+                        "id": f"region-{page_index + 1}-{block_index + 1}",
+                        "type": _region_label(text, bbox, page.rect.height, max_font_size),
+                        "bbox": bbox,
+                        "text": text,
+                        "font_size": round(max_font_size, 2),
+                        "reading_order": len(regions),
+                    }
+                )
+
+            tables, warnings = _extract_tables(page)
+            total_images += len(images)
+            total_tables += len(tables)
+            image_area = sum(
+                max(0, image["bbox"][2] - image["bbox"][0])
+                * max(0, image["bbox"][3] - image["bbox"][1])
+                for image in images
+            )
+            page_area = max(1, page.rect.width * page.rect.height)
+            page_text = "\n".join(r["text"] for r in regions if r["text"])
+            needs_ocr = len(page_text.strip()) < 20 and image_area / page_area > 0.45
+            if needs_ocr:
+                warnings.append("Page appears scanned; OCR is not enabled in this build")
+            pages.append(
+                {
+                    "number": page_index + 1,
+                    "width": round(page.rect.width, 2),
+                    "height": round(page.rect.height, 2),
+                    "rotation": page.rotation,
+                    "text": page_text,
+                    "regions": regions,
+                    "images": images,
+                    "tables": tables,
+                    "needs_ocr": needs_ocr,
+                    "warnings": warnings,
+                }
+            )
+
+        metadata = {key: value or "" for key, value in document.metadata.items()}
+
+    if not total_text:
+        document_warnings.append("No machine-readable text was found")
+    return {
+        "schema_version": "1.0",
+        "id": document_id,
+        "filename": filename,
+        "sha256": hashlib.sha256(file_bytes).hexdigest(),
+        "size_bytes": len(file_bytes),
+        "created_at": datetime.now(UTC).isoformat(),
+        "status": "ready",
+        "metadata": metadata,
+        "summary": {
+            "page_count": len(pages),
+            "character_count": total_text,
+            "image_count": total_images,
+            "table_count": total_tables,
+            "ocr_pages": sum(page["needs_ocr"] for page in pages),
+        },
+        "warnings": document_warnings,
+        "pages": pages,
+    }

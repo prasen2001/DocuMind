@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Evidence-first PDF analysis workspace">
+    <title>DocuMind — Document intelligence</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="DocuMind home">
+        <span class="brand-mark">D</span>
+        <span>DocuMind</span>
+      </a>
+      <div class="status"><span class="status-dot"></span> Local workspace</div>
+    </header>
+
+    <main>
+      <section id="welcome" class="welcome">
+        <div class="eyebrow">Evidence-first document intelligence</div>
+        <h1>Turn PDFs into<br><em>traceable answers.</em></h1>
+        <p class="lede">Read text, tables, images, and layout as one connected document. Every answer points back to the exact page region that supports it.</p>
+        <label id="dropzone" class="dropzone">
+          <input id="file-input" type="file" accept="application/pdf,.pdf">
+          <span class="upload-icon" aria-hidden="true">↑</span>
+          <span><strong>Drop a PDF here</strong><small>or choose a file · up to 50 MB</small></span>
+        </label>
+        <div id="upload-progress" class="upload-progress hidden" role="status">
+          <span class="spinner"></span><span>Reading document structure…</span>
+        </div>
+        <div id="welcome-error" class="error hidden"></div>
+
+        <div class="feature-row">
+          <div><span>01</span><strong>Structured extraction</strong><small>Text, layout, tables, images</small></div>
+          <div><span>02</span><strong>Grounded questions</strong><small>Answers only when evidence exists</small></div>
+          <div><span>03</span><strong>Visual citations</strong><small>Inspect every source region</small></div>
+        </div>
+      </section>
+
+      <section id="workspace" class="workspace hidden">
+        <aside class="sidebar">
+          <div class="sidebar-heading">
+            <span>Documents</span>
+            <label class="icon-button" title="Add PDF">+<input id="sidebar-file" type="file" accept="application/pdf,.pdf"></label>
+          </div>
+          <div id="document-list" class="document-list"></div>
+          <div class="privacy-note"><span>⌂</span><div><strong>Private by default</strong><small>Files stay on this machine.</small></div></div>
+        </aside>
+
+        <section class="document-area">
+          <header class="document-header">
+            <div>
+              <div class="eyebrow">Active document</div>
+              <h2 id="document-title">—</h2>
+            </div>
+            <div id="document-stats" class="document-stats"></div>
+          </header>
+
+          <div class="document-grid">
+            <div class="viewer-panel panel">
+              <div class="panel-toolbar">
+                <div class="tabs" role="tablist">
+                  <button class="tab active" data-view="page">Page</button>
+                  <button class="tab" data-view="structure">Structure</button>
+                  <button class="tab" data-view="tables">Tables</button>
+                </div>
+                <div class="page-control">
+                  <button id="prev-page" aria-label="Previous page">‹</button>
+                  <span>Page <strong id="page-number">1</strong> / <span id="page-count">1</span></span>
+                  <button id="next-page" aria-label="Next page">›</button>
+                </div>
+              </div>
+              <div id="page-view" class="page-view">
+                <div id="canvas-wrap" class="canvas-wrap">
+                  <img id="page-image" alt="Rendered PDF page">
+                  <div id="evidence-layer" class="evidence-layer"></div>
+                </div>
+              </div>
+              <div id="structure-view" class="structure-view hidden"></div>
+              <div id="tables-view" class="tables-view hidden"></div>
+            </div>
+
+            <aside class="analysis-panel panel">
+              <div class="analysis-heading">
+                <div><div class="eyebrow">Ask DocuMind</div><h3>Answers with receipts.</h3></div>
+                <span class="method-badge">Local</span>
+              </div>
+              <div id="answer-empty" class="answer-empty">
+                <div class="constellation">✦</div>
+                <p>Ask about names, dates, terms, totals, or any phrase in this document.</p>
+                <div id="suggestions" class="suggestions"></div>
+              </div>
+              <div id="answer-result" class="answer-result hidden"></div>
+              <form id="question-form" class="question-form">
+                <textarea id="question" rows="2" placeholder="Ask a question about this document…" required></textarea>
+                <button type="submit" aria-label="Ask question">→</button>
+              </form>
+              <div class="answer-footnote">Answers abstain when no source evidence is found.</div>
+            </aside>
+          </div>
+        </section>
+      </section>
+    </main>
+    <div id="toast" class="toast hidden" role="status"></div>
+    <script src="/app.js" defer></script>
+  </body>
+</html>
+

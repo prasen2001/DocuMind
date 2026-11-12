@@ -1,0 +1,1 @@
+"""Bundled DocuMind web interface."""
