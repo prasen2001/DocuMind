@@ -18,6 +18,7 @@ The current usable vertical slice includes:
 - vector chart detection with titles, labels, numeric values, and source boxes;
 - evidence-grounded lexical or optional semantic extractive RAG with highlighted source regions;
 - side-by-side multi-document comparison with isolated evidence per document;
+- persistent human review and an operations panel for jobs, capabilities, latency, and failures;
 - a responsive document intelligence dashboard with no frontend build step.
 
 OCR is capability-detected. Native-text PDFs work with only Python and PyMuPDF. When the

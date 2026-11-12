@@ -13,7 +13,7 @@
         <span class="brand-mark">D</span>
         <span>DocuMind</span>
       </a>
-      <div class="status"><span class="status-dot"></span> Local workspace</div>
+      <div class="top-actions"><button id="ops-open" class="top-action">Operations</button><div class="status"><span class="status-dot"></span> Local workspace</div></div>
     </header>
 
     <main>
@@ -141,6 +141,19 @@
         </div>
         <p class="modal-intro">Low-confidence extraction stays separate from trusted evidence until an analyst records a decision.</p>
         <div id="review-list" class="review-list"></div>
+      </div>
+    </div>
+    <div id="ops-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="ops-title">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div><div class="eyebrow">Operations</div><h2 id="ops-title">Pipeline health</h2></div>
+          <button id="ops-close" class="modal-close" aria-label="Close operations">×</button>
+        </div>
+        <div id="ops-metrics" class="ops-metrics"></div>
+        <div class="eyebrow ops-section-title">Runtime capabilities</div>
+        <div id="ops-capabilities" class="capability-list"></div>
+        <div class="eyebrow ops-section-title">Recent ingestion jobs</div>
+        <div id="ops-jobs" class="ops-jobs"></div>
       </div>
     </div>
     <div id="toast" class="toast hidden" role="status"></div>

@@ -11,7 +11,7 @@ The milestones are vertical slices: each one leaves the application runnable and
 | 5 | Ask questions about documents | Complete | Lexical or semantic extractive RAG abstains without evidence |
 | 6 | Highlight source regions | Complete | Answer citations map onto rendered page coordinates |
 | 7 | Compare multiple documents | Complete | Parallel retrieval preserves independent citations |
-| 8 | Complete intelligence dashboard | In progress | Async ingestion, search, evidence, review, comparison, metrics |
+| 8 | Complete intelligence dashboard | Complete | Ingestion, viewer, search, Q&A, review, comparison, and operations |
 
 ## Phases
 

@@ -25,6 +25,8 @@ button { color: inherit; }
 .brand-mark { display: grid; place-items: center; width: 31px; height: 35px; color: white; background: var(--moss); border-radius: 3px 10px 3px 3px; font: 700 18px Georgia, serif; }
 .status { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 8px; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #51a16d; box-shadow: 0 0 0 4px #dfeee3; }
+.top-actions { display: flex; align-items: center; gap: 17px; }
+.top-action { border: 0; background: transparent; color: var(--moss); cursor: pointer; font-size: 10px; text-transform: uppercase; letter-spacing: .12em; }
 
 .welcome { width: min(1080px, 90vw); margin: 0 auto; padding: 9vh 0 6vh; text-align: center; }
 .eyebrow { color: var(--moss); text-transform: uppercase; letter-spacing: .16em; font-weight: 700; font-size: 10px; }
@@ -169,6 +171,18 @@ td { border: 1px solid var(--line); padding: 7px; }
 .review-actions button { border: 1px solid var(--line); border-radius: 5px; background: white; padding: 7px 9px; cursor: pointer; font-size: 10px; }
 .review-actions button:first-child { border-color: var(--moss); color: var(--moss); }
 .priority-high { color: #9b3d2f; }
+.ops-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 9px; margin: 20px 0; }
+.ops-metric { border: 1px solid var(--line); border-radius: 7px; padding: 12px; background: #fafaf5; }
+.ops-metric strong, .ops-metric small { display: block; }
+.ops-metric strong { font: 24px Georgia, serif; }
+.ops-metric small { color: var(--muted); margin-top: 5px; text-transform: uppercase; font-size: 8px; letter-spacing: .1em; }
+.ops-section-title { margin: 23px 0 9px; }
+.capability-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.capability { border-radius: 15px; padding: 5px 9px; font-size: 9px; background: #eee; color: var(--muted); }
+.capability.enabled { background: var(--mint); color: var(--moss-dark); }
+.job-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 10px 2px; border-bottom: 1px solid var(--line); font-size: 11px; }
+.job-row small { display: block; color: var(--muted); margin-top: 3px; }
+.job-status { text-transform: uppercase; font-size: 9px; color: var(--moss); }
 
 @media (max-width: 900px) {
   .workspace { grid-template-columns: 1fr; }

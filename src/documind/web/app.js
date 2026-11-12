@@ -338,6 +338,21 @@ async function openReviews() {
   } catch (error) { toast(error.message); }
 }
 
+async function openOperations() {
+  try {
+    const [metrics, jobs, health] = await Promise.all([api("/api/metrics"), api("/api/jobs"), api("/api/health")]);
+    const values = [
+      [metrics.document_count, "Documents"], [metrics.queue_depth, "Queue depth"],
+      [metrics.jobs_completed, "Completed"], [metrics.jobs_failed, "Failed"],
+      [`${Math.round(metrics.average_processing_milliseconds)} ms`, "Avg processing"],
+    ];
+    $("#ops-metrics").innerHTML = values.map(([value, label]) => `<div class="ops-metric"><strong>${value}</strong><small>${label}</small></div>`).join("");
+    $("#ops-capabilities").innerHTML = Object.entries(health.capabilities).map(([name, enabled]) => `<span class="capability ${enabled === true || typeof enabled === "string" ? "enabled" : ""}">${escapeHtml(name.replaceAll("_", " "))}: ${escapeHtml(String(enabled))}</span>`).join("");
+    $("#ops-jobs").innerHTML = jobs.jobs.length ? jobs.jobs.slice(0, 12).map(job => `<div class="job-row"><div><strong>${escapeHtml(job.filename)}</strong><small>${escapeHtml(job.id.slice(0, 10))} · ${new Date(job.created_at).toLocaleString()}</small></div><span class="job-status">${escapeHtml(job.status)}</span></div>`).join("") : `<div class="empty-state">No ingestion jobs in this process.</div>`;
+    $("#ops-modal").classList.remove("hidden");
+  } catch (error) { toast(error.message); }
+}
+
 $("#file-input").addEventListener("change", event => upload(event.target.files[0]));
 $("#sidebar-file").addEventListener("change", event => upload(event.target.files[0]));
 const dropzone = $("#dropzone");
@@ -359,6 +374,9 @@ $("#compare-form").addEventListener("submit", event => { event.preventDefault();
 $("#review-open").addEventListener("click", openReviews);
 $("#review-close").addEventListener("click", () => $("#review-modal").classList.add("hidden"));
 $("#review-modal").addEventListener("click", event => { if (event.target === $("#review-modal")) $("#review-modal").classList.add("hidden"); });
+$("#ops-open").addEventListener("click", openOperations);
+$("#ops-close").addEventListener("click", () => $("#ops-modal").classList.add("hidden"));
+$("#ops-modal").addEventListener("click", event => { if (event.target === $("#ops-modal")) $("#ops-modal").classList.add("hidden"); });
 
 Promise.all([loadCapabilities(), loadDocuments()]).catch(error => { showWelcome(); toast(`Could not load workspace: ${error.message}`); });
 
