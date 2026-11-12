@@ -5,12 +5,12 @@ The milestones are vertical slices: each one leaves the application runnable and
 | Milestone | Deliverable | Status | Acceptance signal |
 | --- | --- | --- | --- |
 | 1 | Upload PDF and extract text | Complete | Native and optional OCR text retain page and source boxes |
-| 2 | Detect and extract tables | Foundation | Native vector and scanned OCR grid tables are normalized |
-| 3 | Identify document layout | Foundation | Region labels, reading order, and caption relationships |
-| 4 | Extract information from charts | Foundation | Vector chart regions, labels, values, and evidence boxes |
-| 5 | Ask questions about documents | Foundation | Local lexical retrieval with abstention |
-| 6 | Highlight source regions | Foundation | Answer citations map onto rendered page coordinates |
-| 7 | Compare multiple documents | Foundation | Parallel retrieval preserves independent citations |
+| 2 | Detect and extract tables | Complete | Native vector and scanned OCR grid tables are normalized |
+| 3 | Identify document layout | Complete | Region labels, reading order, and caption relationships |
+| 4 | Extract information from charts | Complete | Vector chart regions, labels, values, and evidence boxes |
+| 5 | Ask questions about documents | Complete | Lexical or semantic extractive RAG abstains without evidence |
+| 6 | Highlight source regions | Complete | Answer citations map onto rendered page coordinates |
+| 7 | Compare multiple documents | Complete | Parallel retrieval preserves independent citations |
 | 8 | Complete intelligence dashboard | In progress | Async ingestion, search, evidence, review, comparison, metrics |
 
 ## Phases

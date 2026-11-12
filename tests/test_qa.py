@@ -1,6 +1,10 @@
-from documind.qa import answer_question
+from collections.abc import Sequence
+
+from documind.qa import answer_question, answer_question_semantic
 
 DOCUMENT = {
+    "id": "document-1",
+    "filename": "financial-results.pdf",
     "pages": [
         {
             "number": 1,
@@ -19,7 +23,7 @@ DOCUMENT = {
                 },
             ],
         }
-    ]
+    ],
 }
 
 
@@ -37,3 +41,23 @@ def test_answer_abstains_without_evidence() -> None:
 
     assert result["grounded"] is False
     assert result["citations"] == []
+
+
+class SemanticTestEncoder:
+    def encode(self, texts: Sequence[str]) -> list[list[float]]:
+        return [
+            [1.0, 0.0] if "turnover" in text.lower() or "revenue" in text.lower() else [0.0, 1.0]
+            for text in texts
+        ]
+
+
+def test_semantic_rag_returns_only_cited_source_text() -> None:
+    result = answer_question_semantic(
+        DOCUMENT, "What turnover was reported?", encoder=SemanticTestEncoder()
+    )
+
+    assert result["grounded"] is True
+    assert result["method"] == "semantic-extractive-rag"
+    assert "$4.2 million" in result["answer"]
+    assert result["citations"][0]["bbox"] == [10, 40, 400, 80]
+    assert "unsupported text" in result["notice"]

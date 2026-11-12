@@ -18,7 +18,7 @@ from .compare import compare_documents
 from .jobs import IngestionJobs
 from .multimodal import MultimodalUnavailable, analyze_image, multimodal_available
 from .ocr import ocr_available
-from .qa import answer_question
+from .qa import answer_question, answer_question_semantic
 from .reviews import ReviewQueue
 from .search import search_documents
 from .semantic import SemanticUnavailable, semantic_available, semantic_search_documents
@@ -184,7 +184,13 @@ class DocuMindHandler(BaseHTTPRequestHandler):
                 if not question:
                     raise ValueError("A question is required")
                 document = self.server.store.get(parts[2])
-                self._json(answer_question(document, question))
+                method = str(request.get("method", "lexical"))
+                if method == "semantic":
+                    self._json(answer_question_semantic(document, question))
+                elif method == "lexical":
+                    self._json(answer_question(document, question))
+                else:
+                    raise ValueError("method must be lexical or semantic")
                 return
             self._error(HTTPStatus.NOT_FOUND, "Route not found")
         except (ValueError, json.JSONDecodeError) as exc:

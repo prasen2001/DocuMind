@@ -234,7 +234,7 @@ async function ask(question) {
   try {
     const result = await api(`/api/documents/${state.active.id}/questions`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({ question, method: state.capabilities.semantic_search ? "semantic" : "lexical" }),
     });
     state.citations = result.citations;
     $("#answer-empty").classList.add("hidden");

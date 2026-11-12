@@ -5,6 +5,8 @@ import re
 from collections import Counter
 from typing import Any
 
+from .semantic import Encoder, semantic_search_documents
+
 TOKEN_RE = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_-]+")
 SENTENCE_RE = re.compile(r"(?<=[.!?])\s+|\n+")
 STOP_WORDS = {
@@ -110,6 +112,42 @@ def answer_question(document: dict[str, Any], question: str, *, limit: int = 3) 
         "method": "lexical-evidence-retrieval",
         "citations": citations,
         "notice": "This answer is extracted from matching source passages; it is not model-generated.",
+    }
+
+
+def answer_question_semantic(
+    document: dict[str, Any],
+    question: str,
+    *,
+    limit: int = 3,
+    encoder: Encoder | None = None,
+) -> dict[str, Any]:
+    """Retrieve semantically similar evidence and return only extractive source text."""
+    result = semantic_search_documents([document], question, limit=limit, encoder=encoder)
+    matches = [match for match in result["matches"] if match["score"] > 0]
+    if not matches:
+        return _abstention(
+            question, "I could not find relevant semantic evidence in this document."
+        )
+    citations = [
+        {
+            "id": f"citation-{index}",
+            "page": match["page"],
+            "bbox": match["bbox"],
+            "region_id": match["region_id"],
+            "quote": match["quote"],
+            "score": match["score"],
+        }
+        for index, match in enumerate(matches, start=1)
+    ]
+    return {
+        "question": question,
+        "answer": " ".join(match["quote"] for match in matches),
+        "grounded": True,
+        "method": "semantic-extractive-rag",
+        "model": result.get("model"),
+        "citations": citations,
+        "notice": "This answer contains only retrieved source text; no unsupported text was generated.",
     }
 
 

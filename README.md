@@ -16,7 +16,7 @@ The current usable vertical slice includes:
 - OpenCV deskewing, adaptive thresholding, and structural-line diagnostics before OCR;
 - deterministic reading-order and caption-to-figure/table relationships;
 - vector chart detection with titles, labels, numeric values, and source boxes;
-- evidence-grounded lexical question answering with highlighted source regions;
+- evidence-grounded lexical or optional semantic extractive RAG with highlighted source regions;
 - side-by-side multi-document comparison with isolated evidence per document;
 - a responsive document intelligence dashboard with no frontend build step.
 
@@ -113,6 +113,10 @@ Human-review tasks are created automatically for pages still requiring OCR, extr
 OCR regions below 75% confidence, and chart regions below 65% confidence. Decisions persist in
 `reviews.json` with reviewer, note, and timestamp fields and can be opened directly on the cited
 page region from the dashboard.
+
+Question requests accept `method: "lexical"` or `method: "semantic"`. Both modes are extractive:
+the answer consists only of retrieved document text, and every passage carries a page and bounding
+box. The semantic mode is available only when the optional model capability is enabled.
 
 See [ROADMAP.md](ROADMAP.md) for the staged plan and [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md)
 for the dependency-origin and license policy.
