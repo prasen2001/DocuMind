@@ -141,6 +141,60 @@ def test_resume_experience_handles_present_and_overlapping_roles() -> None:
     assert "counted only once" in result["answer"]
 
 
+def test_project_question_cites_project_entry_instead_of_section_heading() -> None:
+    resume = {
+        "id": "project-resume",
+        "filename": "resume.pdf",
+        "pages": [
+            {
+                "number": 1,
+                "regions": [
+                    {
+                        "id": "projects-heading",
+                        "type": "heading",
+                        "bbox": [10, 10, 200, 30],
+                        "text": "Projects",
+                    },
+                    {
+                        "id": "project-title",
+                        "type": "paragraph",
+                        "bbox": [10, 35, 400, 55],
+                        "text": "Brain MRI Segmentation Evaluator | Python, NumPy",
+                    },
+                    {
+                        "id": "project-build",
+                        "type": "list",
+                        "bbox": [10, 60, 400, 80],
+                        "text": "– Built a reproducible segmentation evaluation pipeline.",
+                    },
+                    {
+                        "id": "project-results",
+                        "type": "list",
+                        "bbox": [10, 85, 400, 105],
+                        "text": "– Measured Dice, IoU, confidence intervals, and failures.",
+                    },
+                    {
+                        "id": "awards-heading",
+                        "type": "heading",
+                        "bbox": [10, 110, 200, 130],
+                        "text": "Awards",
+                    },
+                ],
+            }
+        ],
+    }
+
+    result = answer_question(resume, "What projects has the candidate completed?")
+
+    assert result["method"] == "resume-project-section-analysis"
+    assert "Brain MRI Segmentation Evaluator" in result["answer"]
+    assert [citation["region_id"] for citation in result["citations"]] == [
+        "project-title",
+        "project-build",
+        "project-results",
+    ]
+
+
 def test_ai_experience_diversifies_evidence_across_roles() -> None:
     resume = {
         **RESUME,

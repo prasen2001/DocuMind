@@ -243,6 +243,7 @@ async function ask(question) {
       "resume-ai-role-rubric": "AI role rubric",
       "resume-ai-experience-analysis": "Resume AI analysis",
       "resume-experience-date-analysis": "Date analysis",
+      "resume-project-section-analysis": "Project analysis",
       "semantic-extractive-rag": "Semantic evidence",
       "lexical-evidence-retrieval": "Local evidence",
     };

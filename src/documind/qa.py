@@ -59,6 +59,12 @@ AI_SCORE_QUESTION_RE = re.compile(
     r"\b(?:score|rate|rating|rank|evaluate|assessment)\b",
     re.IGNORECASE,
 )
+PROJECT_QUESTION_RE = re.compile(
+    r"\bprojects?\b.*(?:\bcompleted\b|\bbuilt\b|\bcreated\b|\bdeveloped\b|\bworked\b|\bcandidate\b)"
+    r"|(?:\bcompleted\b|\bbuilt\b|\bcreated\b|\bdeveloped\b|\bworked\b|\bcandidate\b).*\bprojects?\b",
+    re.IGNORECASE,
+)
+RESUME_LIST_MARKER_RE = re.compile(r"^(?:[•●▪◦*–—-]|\d+[.)])\s+")
 AI_EVIDENCE_RE = re.compile(
     r"\b(?:ai|artificial intelligence|llms?|large language models?|multi-agent|agentic|rag|"
     r"retrieval-augmented generation|langchain|machine learning|ml inference|model inference|"
@@ -86,6 +92,7 @@ AI_CAPABILITIES = (
     (re.compile(r"\bmachine learning\b", re.IGNORECASE), "machine learning"),
 )
 EXPERIENCE_HEADINGS = {"experience", "work experience", "professional experience", "employment"}
+PROJECT_HEADINGS = {"projects", "project experience", "personal projects", "selected projects"}
 SECTION_HEADINGS = {
     "education",
     "projects",
@@ -97,6 +104,8 @@ SECTION_HEADINGS = {
     "certifications",
     "publications",
     "awards",
+    "personal projects",
+    "selected projects",
 }
 STOP_WORDS = {
     "a",
@@ -148,6 +157,7 @@ def answer_question(
         _answer_ai_role_score(document, question)
         or _answer_ai_experience(document, question)
         or _answer_experience_duration(document, question, reference_date)
+        or _answer_resume_projects(document, question)
     )
     if analytical_answer:
         return analytical_answer
@@ -231,6 +241,7 @@ def answer_question_semantic(
         _answer_ai_role_score(document, question)
         or _answer_ai_experience(document, question)
         or _answer_experience_duration(document, question, reference_date)
+        or _answer_resume_projects(document, question)
     )
     if analytical_answer:
         return analytical_answer
@@ -260,6 +271,57 @@ def answer_question_semantic(
         "model": result.get("model"),
         "citations": citations,
         "notice": "This answer contains only retrieved source text; no unsupported text was generated.",
+    }
+
+
+def _answer_resume_projects(document: dict[str, Any], question: str) -> dict[str, Any] | None:
+    if not PROJECT_QUESTION_RE.search(question):
+        return None
+
+    regions = _project_regions(document)
+    if not regions:
+        return _abstention(question, "I could not find project entries in this resume.")
+
+    title_regions = [
+        (page, region)
+        for page, region in regions
+        if region.get("type") not in {"list", "footer"}
+        and not RESUME_LIST_MARKER_RE.match(region["text"].strip())
+        and len(region["text"].strip()) <= 220
+    ]
+    project_names = [
+        region["text"].split("|", 1)[0].strip().rstrip(":") for _, region in title_regions
+    ]
+    project_names = list(dict.fromkeys(name for name in project_names if name))
+    if project_names:
+        project_summary = (
+            f"The resume lists {len(project_names)} project"
+            f"{'s' if len(project_names) != 1 else ''}: {', '.join(project_names)}."
+        )
+    else:
+        project_summary = "The resume includes project work described in the cited regions."
+
+    citations = [
+        {
+            "id": f"citation-{index}",
+            "page": page["number"],
+            "bbox": region["bbox"],
+            "region_id": region["id"],
+            "quote": region["text"][:500],
+            "score": 1.0,
+        }
+        for index, (page, region) in enumerate(regions[:10], start=1)
+    ]
+    return {
+        "question": question,
+        "answer": (
+            f"{project_summary} The cited project title and accomplishment bullets describe what "
+            "was built and the reported evaluation results."
+        ),
+        "grounded": True,
+        "method": "resume-project-section-analysis",
+        "citations": citations,
+        "notice": "Project headings are excluded; citations point to project entries and their details.",
     }
 
 
@@ -603,6 +665,26 @@ def _experience_regions(
             if in_experience and normalized in SECTION_HEADINGS:
                 return regions
             if in_experience:
+                regions.append((page, region))
+    return regions
+
+
+def _project_regions(
+    document: dict[str, Any],
+) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    regions: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    in_projects = False
+    for page in document.get("pages", []):
+        for region in page.get("regions", []):
+            if not region.get("text", "").strip():
+                continue
+            normalized = re.sub(r"[^a-z& ]", "", region["text"].lower()).strip()
+            if normalized in PROJECT_HEADINGS:
+                in_projects = True
+                continue
+            if in_projects and normalized in SECTION_HEADINGS:
+                return regions
+            if in_projects:
                 regions.append((page, region))
     return regions
 
