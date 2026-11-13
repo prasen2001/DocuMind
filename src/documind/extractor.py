@@ -14,6 +14,14 @@ from .relationships import infer_relationships
 from .tables import extract_ocr_tables
 from .vision import preprocess_page
 
+DATE_RANGE_RE = re.compile(
+    r"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}\s*"
+    r"(?:[-–—]|\bto\b)\s*(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)"
+    r"[a-z]*\.?\s+\d{4}|Present|Current|Now)\b",
+    re.IGNORECASE,
+)
+LIST_MARKER_RE = re.compile(r"^(?:[•●▪◦*–—-]|\d+[.)])\s+")
+
 
 def _box(value: Any) -> list[float]:
     """Return a stable, JSON-safe PDF coordinate box."""
@@ -22,20 +30,128 @@ def _box(value: Any) -> list[float]:
     return [round(float(part), 2) for part in value]
 
 
-def _region_label(text: str, bbox: list[float], page_height: float, font_size: float) -> str:
+def _region_label(
+    text: str, bbox: list[float], page_height: float, font_size: float, *, bold: bool = False
+) -> str:
     stripped = text.strip()
     y0, y1 = bbox[1], bbox[3]
     if font_size >= 18:
         return "title"
     if y0 < page_height * 0.07:
         return "header"
+    if LIST_MARKER_RE.match(stripped):
+        return "list"
     if y1 > page_height * 0.93:
         return "footer"
-    if re.match(r"^(?:[•●▪◦*-]|\d+[.)])\s+", stripped):
-        return "list"
-    if font_size >= 13 or (len(stripped) < 90 and stripped.endswith(":")):
+    if (font_size >= 13 or (font_size >= 11.5 and bold)) and len(stripped) < 100:
         return "heading"
     return "paragraph"
+
+
+def _extract_text_regions(
+    page_dict: dict[str, Any], page_index: int, page_height: float
+) -> list[dict[str, Any]]:
+    """Reconstruct logical paragraphs from positioned PDF lines, not renderer blocks."""
+    rows: list[dict[str, Any]] = []
+    for block_index, block in enumerate(page_dict.get("blocks", [])):
+        if block.get("type") != 0:
+            continue
+        block_rows: list[list[dict[str, Any]]] = []
+        for line in block.get("lines", []):
+            spans = line.get("spans", [])
+            text = "".join(span.get("text", "") for span in spans).strip()
+            if not text:
+                continue
+            item = {
+                "text": text,
+                "bbox": _box(line.get("bbox")),
+                "font_size": max((float(span.get("size", 0)) for span in spans), default=0),
+                "bold": any(int(span.get("flags", 0)) & 16 for span in spans),
+            }
+            if block_rows and abs(block_rows[-1][0]["bbox"][1] - item["bbox"][1]) <= 2:
+                block_rows[-1].append(item)
+            else:
+                block_rows.append([item])
+
+        for same_line in block_rows:
+            same_line.sort(key=lambda item: item["bbox"][0])
+            pieces: list[str] = []
+            previous_x1: float | None = None
+            for item in same_line:
+                gap = item["bbox"][0] - previous_x1 if previous_x1 is not None else 0
+                pieces.append(
+                    (" | " if gap > 15 else " ") + item["text"] if pieces else item["text"]
+                )
+                previous_x1 = item["bbox"][2]
+            rows.append(
+                {
+                    "text": "".join(pieces),
+                    "bbox": [
+                        min(item["bbox"][0] for item in same_line),
+                        min(item["bbox"][1] for item in same_line),
+                        max(item["bbox"][2] for item in same_line),
+                        max(item["bbox"][3] for item in same_line),
+                    ],
+                    "font_size": max(item["font_size"] for item in same_line),
+                    "bold": any(item["bold"] for item in same_line),
+                    "block_index": block_index,
+                }
+            )
+
+    groups: list[list[dict[str, Any]]] = []
+    for row in rows:
+        if not groups or _starts_logical_region(row, groups[-1]):
+            groups.append([row])
+        else:
+            groups[-1].append(row)
+
+    regions: list[dict[str, Any]] = []
+    for group in groups:
+        text = " ".join(row["text"].strip() for row in group).strip()
+        bbox = [
+            min(row["bbox"][0] for row in group),
+            min(row["bbox"][1] for row in group),
+            max(row["bbox"][2] for row in group),
+            max(row["bbox"][3] for row in group),
+        ]
+        font_size = max(row["font_size"] for row in group)
+        regions.append(
+            {
+                "id": f"region-{page_index + 1}-{len(regions) + 1}",
+                "type": _region_label(
+                    text, bbox, page_height, font_size, bold=any(row["bold"] for row in group)
+                ),
+                "bbox": _box(bbox),
+                "text": text,
+                "font_size": round(font_size, 2),
+                "reading_order": len(regions),
+                "_source_order": group[0]["block_index"],
+            }
+        )
+    return regions
+
+
+def _starts_logical_region(row: dict[str, Any], current: list[dict[str, Any]]) -> bool:
+    text = row["text"].strip()
+    current_text = " ".join(item["text"] for item in current).strip()
+    bullet = bool(LIST_MARKER_RE.match(text))
+    current_bullet = bool(LIST_MARKER_RE.match(current_text))
+    heading = row["font_size"] >= 11.5 and row["bold"] and len(text) < 100
+    current_heading = (
+        current[0]["font_size"] >= 11.5 and current[0]["bold"] and len(current_text) < 100
+    )
+    field_label = bool(re.match(r"^[A-Za-z][A-Za-z &/+.-]{1,35}:\s", text))
+    gap = row["bbox"][1] - current[-1]["bbox"][3]
+
+    if heading or current_heading or bullet or field_label:
+        return True
+    if current_bullet:
+        if row["bold"] and row["bbox"][0] <= current[0]["bbox"][0] + 2:
+            return True
+        return gap > 5 or row["bbox"][0] <= current[0]["bbox"][0] + 2
+    if row["bold"] and row["bbox"][0] <= 35 and (DATE_RANGE_RE.search(current_text) or gap > 4):
+        return True
+    return row["block_index"] != current[-1]["block_index"]
 
 
 def _extract_tables(page: pymupdf.Page) -> tuple[list[dict[str, Any]], list[str]]:
@@ -79,7 +195,7 @@ def extract_pdf(pdf_path: Path, *, document_id: str, filename: str) -> dict[str,
         for page_index, page in enumerate(document):
             page_dict = page.get_text("dict", sort=True)
             image_info = page.get_image_info(xrefs=True)
-            regions: list[dict[str, Any]] = []
+            regions = _extract_text_regions(page_dict, page_index, page.rect.height)
             images: list[dict[str, Any]] = []
 
             for block_index, block in enumerate(page_dict.get("blocks", [])):
@@ -107,43 +223,21 @@ def extract_pdf(pdf_path: Path, *, document_id: str, filename: str) -> dict[str,
                     )
                     regions.append(
                         {
-                            "id": f"region-{page_index + 1}-{block_index + 1}",
+                            "id": "",
                             "type": "image",
                             "bbox": bbox,
                             "text": "",
                             "font_size": 0,
-                            "reading_order": len(regions),
+                            "reading_order": 0,
+                            "_source_order": block_index,
                         }
                     )
-                    continue
-                if block.get("type") != 0:
-                    continue
 
-                lines: list[str] = []
-                max_font_size = 0.0
-                for line in block.get("lines", []):
-                    spans = line.get("spans", [])
-                    line_text = "".join(span.get("text", "") for span in spans).strip()
-                    if line_text:
-                        lines.append(line_text)
-                    max_font_size = max(
-                        max_font_size,
-                        max((float(span.get("size", 0)) for span in spans), default=0),
-                    )
-                text = "\n".join(lines).strip()
-                if not text:
-                    continue
-                total_text += len(text)
-                regions.append(
-                    {
-                        "id": f"region-{page_index + 1}-{block_index + 1}",
-                        "type": _region_label(text, bbox, page.rect.height, max_font_size),
-                        "bbox": bbox,
-                        "text": text,
-                        "font_size": round(max_font_size, 2),
-                        "reading_order": len(regions),
-                    }
-                )
+            regions.sort(key=lambda region: (region.pop("_source_order"), region["bbox"][1]))
+            for region_index, region in enumerate(regions, start=1):
+                region["id"] = f"region-{page_index + 1}-{region_index}"
+                region["reading_order"] = region_index - 1
+                total_text += len(region.get("text", ""))
 
             tables, warnings = _extract_tables(page)
             charts = extract_charts(page, regions)
