@@ -153,7 +153,13 @@ def test_ai_experience_diversifies_evidence_across_roles() -> None:
                         "id": "insaito-ai",
                         "type": "paragraph",
                         "bbox": [10, 116, 400, 135],
-                        "text": "Built an AI agent platform with multi-agent orchestration and RAG.",
+                        "text": "Built an AI agent platform with multi-agent orchestration.",
+                    },
+                    {
+                        "id": "insaito-rag",
+                        "type": "paragraph",
+                        "bbox": [10, 136, 400, 150],
+                        "text": "Built RAG pipelines for grounded document retrieval.",
                     },
                     RESUME["pages"][0]["regions"][4],
                     {
@@ -175,14 +181,22 @@ def test_ai_experience_diversifies_evidence_across_roles() -> None:
     assert "2 dated roles" in result["answer"]
     assert {citation["region_id"] for citation in result["citations"]} == {
         "insaito-ai",
+        "insaito-rag",
         "fold-ai",
     }
+
+    evidence_result = answer_question(
+        resume, "What evidence supports the candidate's AI experience?"
+    )
+
+    assert "insaito-rag" in {citation["region_id"] for citation in evidence_result["citations"]}
 
     knowledge_result = answer_question(resume, "Does the candidate know AI?")
 
     assert knowledge_result["method"] == "resume-ai-experience-analysis"
     assert {citation["region_id"] for citation in knowledge_result["citations"]} == {
         "insaito-ai",
+        "insaito-rag",
         "fold-ai",
     }
 

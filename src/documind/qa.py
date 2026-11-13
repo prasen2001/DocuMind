@@ -471,6 +471,21 @@ def _answer_ai_experience(document: dict[str, Any], question: str) -> dict[str, 
     capabilities = [label for pattern, label in AI_CAPABILITIES if pattern.search(combined)]
     if not capabilities:
         capabilities = ["artificial intelligence"]
+    selected_region_ids = {region["id"] for _, region, _ in representative_evidence}
+    for pattern, _ in AI_CAPABILITIES:
+        if not pattern.search(combined) or any(
+            pattern.search(sentence) for _, _, sentence in representative_evidence
+        ):
+            continue
+        for page, region in regions:
+            match = pattern.search(region["text"])
+            if not match or region["id"] in selected_region_ids:
+                continue
+            representative_evidence.append(
+                (page, region, _evidence_sentence(region["text"], match.start()))
+            )
+            selected_region_ids.add(region["id"])
+            break
     dated_roles = [match.group(0) for index, match in enumerate(role_dates) if index in by_role]
     role_summary = (
         f" in {len(dated_roles)} dated roles ({'; '.join(dated_roles)})" if dated_roles else ""
