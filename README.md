@@ -18,7 +18,7 @@ The current usable vertical slice includes:
 - vector chart detection with titles, labels, numeric values, and source boxes;
 - evidence-grounded lexical or optional semantic extractive RAG with highlighted source regions;
 - section-aware resume analysis for roles, chronology, skills, education, projects, quantified
-  results, candidate scoring, and claim-verification interviews, covered by 65 regression questions;
+  results, candidate scoring, and claim-verification interviews, covered by 105 regression questions;
 - side-by-side multi-document comparison with isolated evidence per document;
 - persistent human review and an operations panel for jobs, capabilities, latency, and failures;
 - a responsive document intelligence dashboard with no frontend build step.

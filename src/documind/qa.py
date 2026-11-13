@@ -174,10 +174,10 @@ def answer_question(
     analytical_answer = (
         _answer_ai_role_score(document, question)
         or _answer_ai_experience(document, question)
+        or answer_resume_fact(document, question)
         or _answer_experience_duration(document, question, reference_date)
         or _answer_resume_projects(document, question)
         or _answer_resume_achievements(document, question)
-        or answer_resume_fact(document, question)
     )
     if analytical_answer:
         return analytical_answer
@@ -260,10 +260,10 @@ def answer_question_semantic(
     analytical_answer = (
         _answer_ai_role_score(document, question)
         or _answer_ai_experience(document, question)
+        or answer_resume_fact(document, question)
         or _answer_experience_duration(document, question, reference_date)
         or _answer_resume_projects(document, question)
         or _answer_resume_achievements(document, question)
-        or answer_resume_fact(document, question)
     )
     if analytical_answer:
         return analytical_answer

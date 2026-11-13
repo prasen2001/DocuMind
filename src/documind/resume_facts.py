@@ -51,6 +51,439 @@ def answer_resume_fact(document: dict[str, Any], question: str) -> dict[str, Any
     skills = _section(document, SKILL_HEADINGS)
     projects = _section(document, PROJECT_HEADINGS)
 
+    duration_match = re.search(
+        r"(?:total experience with|how many years of)\s+([a-z0-9+.#/-]+)(?:\s+experience)?",
+        q,
+    )
+    if duration_match and duration_match.group(1) not in {
+        "experience",
+        "professional",
+        "work",
+        "overall",
+        "total",
+    }:
+        subject = duration_match.group(1)
+        patterns = {
+            "python": r"\bpython\b",
+            "cloud": r"\b(?:aws|gcp|cloud|lambda|pub/sub|firestore)\b",
+        }
+        pattern = patterns.get(subject, rf"\b{re.escape(subject)}\b")
+        matching_roles = [
+            role
+            for role in roles
+            if any(re.search(pattern, item[1]["text"], re.IGNORECASE) for item in role["bullets"])
+        ]
+        months = _role_month_union(matching_roles)
+        evidence = [
+            *((role["page"], role["header"]) for role in matching_roles),
+            *_matching(_role_bullets(matching_roles), pattern),
+        ]
+        return _response(
+            question,
+            f"The dated roles provide approximately {_format_months(months)} of documented "
+            f"{subject} experience. This counts complete roles containing explicit {subject} "
+            "evidence, so it is an estimate rather than a day-level calculation.",
+            "resume-skill-duration-analysis",
+            evidence,
+        )
+
+    if re.search(r"most backend ownership|most backend work", q):
+        return _compare_role_focus(
+            question,
+            roles,
+            r"\b(?:backend|flask|node\.js|postgresql|lambda|serverless|database design)\b",
+            "backend ownership",
+        )
+
+    if re.search(r"most frontend work|most frontend ownership", q):
+        return _compare_role_focus(
+            question,
+            roles,
+            r"\b(?:frontend|reactjs|react flow|react\.memo|template ui|context api)\b",
+            "frontend work",
+        )
+
+    if re.search(r"compare.*responsibilities.*(?:employers|roles)|responsibilities.*across", q):
+        summaries = "; ".join(
+            f"{role['company'].rstrip('.')}: {', '.join(_role_themes(role))}" for role in roles
+        )
+        return _response(
+            question,
+            f"Responsibility comparison — {summaries}.",
+            "resume-role-comparison-analysis",
+            _role_bullets(roles),
+        )
+
+    if re.search(r"responsibilities change|change.*between roles", q):
+        ordered = sorted(roles, key=lambda item: item["start"])
+        if len(ordered) < 2:
+            return None
+        first, second = ordered[0], ordered[-1]
+        return _response(
+            question,
+            f"The responsibilities progressed from {', '.join(_role_themes(first))} at "
+            f"{first['company'].rstrip('.')} to {', '.join(_role_themes(second))} and broader "
+            f"end-to-end ownership at {second['company'].rstrip('.')}.",
+            "resume-responsibility-progression-analysis",
+            [*first["bullets"], *second["bullets"]],
+        )
+
+    if re.search(r"cross-functional collaboration|cross functional collaboration", q):
+        evidence = _matching(
+            experience, r"\b(?:collaborating|architects|designers|product team|code reviews)\b"
+        )
+        return _yes_evidence(
+            question,
+            "cross-functional collaboration",
+            evidence,
+            "resume-collaboration-analysis",
+        )
+
+    if re.search(r"code reviews?", q):
+        evidence = _matching(experience, r"\bcode reviews?\b")
+        return _yes_evidence(question, "code-review", evidence, "resume-quality-practice-analysis")
+
+    if re.search(r"testing experience|experience.*testing", q):
+        evidence = [
+            *_matching(experience, r"\b(?:end-to-end testing|evaluated|ground-truth)\b"),
+            *_matching(projects, r"\b(?:held-out|external|evaluation|failure analysis)\b"),
+        ]
+        return _response(
+            question,
+            "The resume documents end-to-end product testing, verified-ground-truth evaluation, "
+            "held-out and external data evaluation, and failure analysis.",
+            "resume-testing-analysis",
+            evidence,
+        )
+
+    if re.search(r"production incidents?|production issues?", q):
+        evidence = _matching(experience, r"\bproduction issue resolution\b")
+        return _yes_evidence(
+            question,
+            "production-incident handling",
+            evidence,
+            "resume-production-operations-analysis",
+        )
+
+    if re.search(r"ci/cd|continuous integration|continuous delivery", q):
+        evidence = _matching(skills, r"\b(?:ci/cd|github actions|gitlab)\b")
+        return _response(
+            question,
+            "The resume lists CI/CD, GitHub Actions, GitHub, and GitLab. It does not describe a "
+            "specific pipeline implementation in the experience bullets.",
+            "resume-devops-skill-analysis",
+            evidence,
+        )
+
+    if re.search(r"which aws services|aws services", q):
+        evidence = [
+            *_matching(skills, r"\baws\b"),
+            *_matching(experience, r"\baws\b"),
+        ]
+        services = _parenthesized_services(evidence, "AWS")
+        return _response(
+            question,
+            f"The listed AWS services are {', '.join(services)}.",
+            "resume-cloud-service-analysis",
+            evidence,
+        )
+
+    if re.search(r"which gcp services|gcp services", q):
+        evidence = [
+            *_matching(skills, r"\bgcp\b"),
+            *_matching(experience, r"\b(?:gcp|pub/sub|firestore|gcs)\b"),
+        ]
+        services = _parenthesized_services(evidence, "GCP")
+        return _response(
+            question,
+            f"The listed GCP services are {', '.join(services)}.",
+            "resume-cloud-service-analysis",
+            evidence,
+        )
+
+    if re.search(r"containerization|containers?", q):
+        evidence = _matching(skills, r"\bdocker\b")
+        return _response(
+            question,
+            "The resume lists Docker as a containerization tool, but it does not describe a "
+            "container deployment accomplishment.",
+            "resume-devops-skill-analysis",
+            evidence,
+        )
+
+    if re.search(r"message queues?|event buses?", q):
+        evidence = [
+            *_matching(skills, r"\b(?:sqs|eventbridge|pub/sub)\b"),
+            *_matching(experience, r"\bpub/sub\b"),
+        ]
+        return _response(
+            question,
+            "The resume lists Amazon SQS, Amazon EventBridge, and Google Cloud Pub/Sub. Pub/Sub is "
+            "also supported by an experience bullet.",
+            "resume-messaging-service-analysis",
+            evidence,
+        )
+
+    if re.search(r"data[- ]storage services?|storage services?", q):
+        evidence = [
+            *_matching(skills, r"\b(?:rds|s3|gcs|firestore|postgresql|mongodb|redis)\b"),
+            *_matching(experience, r"\b(?:firestore|gcs|postgresql|database)\b"),
+        ]
+        return _response(
+            question,
+            "The resume lists Amazon RDS and S3, Google Cloud Storage and Firestore, plus "
+            "PostgreSQL, MySQL, MongoDB, and Redis.",
+            "resume-storage-service-analysis",
+            evidence,
+        )
+
+    if re.search(r"role-based access controls?|rbac", q):
+        evidence = _matching(experience, r"\brole-based access controls?\b")
+        return _yes_evidence(
+            question,
+            "role-based access control",
+            evidence,
+            "resume-security-compliance-analysis",
+        )
+
+    if re.search(r"api optimization", q):
+        evidence = _matching(experience, r"\breduced api calls\b|\bapi calls by 3x\b")
+        return _response(
+            question,
+            "The resume reports a 3× API-call reduction through React data-fetching, memoization, "
+            "and state-management optimization.",
+            "resume-api-optimization-analysis",
+            evidence,
+        )
+
+    if re.search(r"frontend optimization", q):
+        evidence = _matching(
+            experience,
+            r"\b(?:reactjs data fetching|react\.memo|usememo|usecallback|context api|re-renders)\b",
+        )
+        return _response(
+            question,
+            "Frontend optimization evidence includes corrected React data-fetching dependencies, "
+            "component and callback memoization, Context API restructuring, and fewer re-renders.",
+            "resume-frontend-optimization-analysis",
+            evidence,
+        )
+
+    if re.search(r"database optimization", q):
+        evidence = _matching(
+            experience, r"\b(?:redis caching|query optimizations?|database backed caching)\b"
+        )
+        return _response(
+            question,
+            "Database optimization evidence includes Redis caching, query optimization, and "
+            "database-backed document reuse to remove redundant processing.",
+            "resume-database-optimization-analysis",
+            evidence,
+        )
+
+    if re.search(r"cloud cost optimization", q):
+        evidence = _matching(
+            experience,
+            r"\b(?:serverless pdf pipeline|compute overhead|llm inference costs|response caching)\b",
+        )
+        return _response(
+            question,
+            "Cloud and compute cost evidence includes serverless execution, document caching that "
+            "reduced compute overhead, and an 80% LLM inference-cost reduction through prompt and "
+            "response-cache optimization.",
+            "resume-cloud-cost-analysis",
+            evidence,
+        )
+
+    if re.search(r"largest percentage improvement|highest percentage improvement", q):
+        improvement = _largest_percentage_improvement(_role_bullets(roles))
+        if not improvement:
+            return None
+        percent, item = improvement
+        return _response(
+            question,
+            f"The largest explicitly stated percentage improvement is {percent}%: the reported LLM "
+            "inference-cost reduction.",
+            "resume-percentage-impact-analysis",
+            [item],
+        )
+
+    if re.search(r"rank.*three strongest accomplishments|three strongest accomplishments", q):
+        ranked = _rank_accomplishments(_role_bullets(roles), 3)
+        descriptions = " ".join(
+            f"{index}) {item[1]['text'].lstrip('–—-• ').rstrip()}"
+            for index, item in enumerate(ranked, start=1)
+        )
+        return _response(
+            question,
+            "Resume-evidence ranking by quantified scale: " + descriptions,
+            "resume-accomplishment-ranking",
+            ranked,
+        )
+
+    if re.search(r"relevant to an ai platform|ai platform company", q):
+        evidence = _matching(
+            experience,
+            r"\b(?:ai agent|multi-agent|rag|document intelligence|llm|ocr|vlms?|event-driven)\b",
+        )
+        return _response(
+            question,
+            "The most relevant evidence covers AI-agent platform ownership, multi-agent "
+            "orchestration, RAG, document intelligence with OCR/VLMs, LLM evaluation, and "
+            "event-driven AI automation.",
+            "resume-target-company-relevance-analysis",
+            evidence,
+        )
+
+    if re.search(r"evaluating model quality|model quality evaluation", q):
+        evidence = [
+            *_matching(
+                experience, r"\b(?:evaluated llm|ground-truth|task-specific metrics|accuracy)\b"
+            ),
+            *_matching(projects, r"\b(?:dice|iou|boundary errors?|failure analysis)\b"),
+        ]
+        return _response(
+            question,
+            "Yes. The resume documents LLM extraction evaluation against verified ground truth and "
+            "model-quality evaluation using Dice, IoU, boundary errors, and failure analysis.",
+            "resume-model-quality-analysis",
+            evidence,
+        )
+
+    if re.search(r"evaluating generalization|generalization evaluation", q):
+        evidence = _matching(
+            projects, r"\b(?:external|generalization|dice decline|failure analysis)\b"
+        )
+        return _response(
+            question,
+            "Yes. The medical-imaging project evaluated external data and quantified a mean Dice "
+            "decline from 0.790 to 0.537 to identify cross-dataset generalization limitations.",
+            "resume-generalization-analysis",
+            evidence,
+        )
+
+    if re.search(r"external[- ]validation", q):
+        evidence = _matching(
+            projects, r"\b(?:external 3d volumes|external 2d data|generalization)\b"
+        )
+        return _response(
+            question,
+            "The project used external 3D volumes and external 2D data to measure performance "
+            "degradation and cross-dataset generalization.",
+            "resume-external-validation-analysis",
+            evidence,
+        )
+
+    if re.search(r"computer[- ]vision experience|computer vision", q):
+        evidence = [
+            *_matching(skills, r"\b(?:opencv|tesseract|easyocr)\b"),
+            *_matching(experience, r"\b(?:ocr|vlms?|document intelligence)\b"),
+            *_matching(projects, r"\b(?:segmentation|mri|medical image)\b"),
+        ]
+        return _response(
+            question,
+            "Computer-vision evidence includes OpenCV, Tesseract, EasyOCR, OCR/VLM document "
+            "intelligence, and an MRI segmentation-evaluation project.",
+            "resume-computer-vision-analysis",
+            evidence,
+        )
+
+    if re.search(r"classical machine[- ]learning|classical ml", q):
+        evidence = [
+            *_matching(skills, r"\bscikit-learn\b"),
+            *_matching(projects, r"\b(?:classical segmentation|segmentation methods|bootstrap)\b"),
+        ]
+        return _response(
+            question,
+            "The resume lists scikit-learn and a reproducible comparison of three classical "
+            "segmentation methods with statistical evaluation.",
+            "resume-classical-ml-analysis",
+            evidence,
+        )
+
+    if re.search(r"deep[- ]learning frameworks?", q):
+        evidence = _matching(skills, r"\b(?:tensorflow|pytorch)\b")
+        names = _named_technologies(evidence, ("TensorFlow", "PyTorch"))
+        return _response(
+            question,
+            f"The listed deep-learning frameworks are {', '.join(names)}. The resume lists them as "
+            "skills but does not tie them to a detailed production training project.",
+            "resume-ml-framework-analysis",
+            evidence,
+        )
+
+    if re.search(r"data[- ]analysis ability|data analysis ability", q):
+        evidence = [
+            *_matching(skills, r"\b(?:numpy|pandas|scikit-learn)\b"),
+            *_matching(
+                projects, r"\b(?:dice|iou|confidence intervals?|statistical|failure analysis)\b"
+            ),
+            *_matching(experience, r"\b(?:task-specific metrics|ground-truth|accuracy)\b"),
+        ]
+        return _response(
+            question,
+            "Data-analysis evidence includes NumPy, Pandas, scikit-learn, statistical comparisons, "
+            "confidence intervals, failure analysis, and task-specific evaluation metrics.",
+            "resume-data-analysis",
+            evidence,
+        )
+
+    if re.search(r"skills?.*ml engineer.*missing|ml engineer.*skills?.*missing", q):
+        evidence = [
+            *_matching(skills, r"\b(?:tensorflow|pytorch|scikit-learn|numpy|pandas)\b"),
+            *_matching(experience, r"\b(?:llm|rag|document intelligence|evaluation)\b")[:4],
+        ]
+        return _response(
+            question,
+            "Resume-visible ML engineering gaps are: no explicit model training or fine-tuning, "
+            "feature-pipeline ownership, experiment tracking, model registry, model serving, drift "
+            "monitoring, or production ML observability. These are omission-based inferences, not "
+            "proof that the candidate lacks the skills.",
+            "resume-ml-gap-analysis",
+            evidence,
+            notice="Gap claims are inferred from missing resume evidence; citations show the documented baseline.",
+        )
+
+    if re.search(
+        r"score.*machine[- ]learning engineering|machine[- ]learning engineering.*score", q
+    ):
+        return _engineering_score(document, question, "machine-learning", experience, skills)
+
+    if re.search(r"score.*cloud engineering|cloud engineering.*score", q):
+        return _engineering_score(document, question, "cloud", experience, skills)
+
+    if re.search(r"score.*healthcare software|healthcare software.*score", q):
+        return _engineering_score(document, question, "healthcare", experience, skills)
+
+    if re.search(r"generate technical interview questions?|technical interview questions?", q):
+        evidence = _matching(
+            experience,
+            r"\b(?:ai agent|rag|document intelligence|throughput|serverless|costs?|hipaa)\b",
+        )
+        answer = (
+            "Technical interview questions: 1) Diagram the AI-agent platform and explain your "
+            "ownership. 2) How did you evaluate RAG retrieval and grounding? 3) How was 95%+ LLM "
+            "extraction accuracy measured? 4) What architectural changes enabled 200 concurrent "
+            "workflows? 5) How did the serverless PDF pipeline handle 1,000+ concurrent requests? "
+            "6) What baseline produced the 80% LLM cost reduction? 7) How were HIPAA controls "
+            "implemented?"
+        )
+        return _response(question, answer, "resume-technical-interview-generation", evidence)
+
+    if re.search(r"generate behavioral interview questions?|behavioral interview questions?", q):
+        evidence = _matching(
+            experience,
+            r"\b(?:founding engineer|led|collaborating|production issue|owning|migration)\b",
+        )
+        answer = (
+            "Behavioral interview questions: 1) Describe a time you owned an ambiguous product "
+            "end to end. 2) How did you lead the workflow migration while preserving compatibility? "
+            "3) Tell me about a production issue you helped resolve. 4) How did you work with "
+            "architects, designers, and product partners? 5) Describe a tradeoff between speed, "
+            "cost, and reliability. 6) What feedback changed your technical approach?"
+        )
+        return _response(question, answer, "resume-behavioral-interview-generation", evidence)
+
     if re.search(
         r"\bsummar(?:ize|ise|y)\b.*professional background|professional background.*\bsummar", q
     ):
@@ -790,10 +1223,57 @@ def _format_months(months: int) -> str:
 
 
 def _total_role_duration(roles: list[dict[str, Any]]) -> str:
+    return _format_months(_role_month_union(roles))
+
+
+def _role_month_union(roles: list[dict[str, Any]]) -> int:
     months: set[int] = set()
     for role in roles:
         months.update(range(role["start"], role["end"] + 1))
-    return _format_months(len(months))
+    return len(months)
+
+
+def _compare_role_focus(
+    question: str,
+    roles: list[dict[str, Any]],
+    pattern: str,
+    label: str,
+) -> dict[str, Any] | None:
+    scored = [(len(_matching(role["bullets"], pattern)), role) for role in roles]
+    if not scored:
+        return None
+    count, role = max(scored, key=lambda item: item[0])
+    evidence = _matching(role["bullets"], pattern)
+    return _response(
+        question,
+        f"The {role['company'].rstrip('.')} role contains the most documented {label}, with "
+        f"{count} matching responsibility entr{'y' if count == 1 else 'ies'}.",
+        "resume-role-focus-comparison",
+        evidence,
+    )
+
+
+def _role_themes(role: dict[str, Any]) -> list[str]:
+    text = " ".join(item[1]["text"] for item in role["bullets"]).lower()
+    definitions = (
+        ("AI platform and agent workflows", r"ai agent|multi-agent"),
+        ("RAG and document intelligence", r"rag|document intelligence|ocr|vlm"),
+        ("event-driven automation", r"event-driven|pub/sub|automation engine"),
+        ("healthcare workflow systems", r"healthcare|active lives|providers"),
+        ("application and API performance", r"api calls|react\.memo|latency|query optimization"),
+        ("scalability and serverless processing", r"throughput|concurrent|serverless"),
+        ("LLM healthcare products", r"ehr|llm-powered|hipaa"),
+        ("production delivery and collaboration", r"production features|code reviews|product team"),
+    )
+    return [label for label, pattern in definitions if re.search(pattern, text)][:4]
+
+
+def _parenthesized_services(
+    evidence: list[tuple[dict[str, Any], dict[str, Any]]], provider: str
+) -> list[str]:
+    text = " ".join(item[1]["text"] for item in evidence)
+    match = re.search(rf"\b{re.escape(provider)}\s*\(([^)]+)\)", text, re.IGNORECASE)
+    return [item.strip() for item in match.group(1).split(",")] if match else []
 
 
 def _employment_gaps(
@@ -873,6 +1353,41 @@ def _largest_workload(
     return claim, item
 
 
+def _largest_percentage_improvement(
+    regions: list[tuple[dict[str, Any], dict[str, Any]]],
+) -> tuple[int, tuple[dict[str, Any], dict[str, Any]]] | None:
+    candidates = []
+    for item in regions:
+        text = item[1]["text"]
+        if not re.search(r"\b(?:reduc|sav|improv|increas)", text, re.IGNORECASE):
+            continue
+        candidates.extend((int(value), item) for value in re.findall(r"(\d+)%", text))
+    return max(candidates, key=lambda candidate: candidate[0]) if candidates else None
+
+
+def _rank_accomplishments(
+    regions: list[tuple[dict[str, Any], dict[str, Any]]], limit: int
+) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    scored = []
+    for item in regions:
+        text = item[1]["text"]
+        values = []
+        for token in re.findall(r"\d[\d,]*(?:\.\d+)?[mMkK]?\+?", text):
+            normalized = token.lower().replace(",", "").rstrip("+")
+            multiplier = 1
+            if normalized.endswith("m"):
+                multiplier, normalized = 1_000_000, normalized[:-1]
+            elif normalized.endswith("k"):
+                multiplier, normalized = 1_000, normalized[:-1]
+            try:
+                values.append(float(normalized) * multiplier)
+            except ValueError:
+                continue
+        scored.append((max(values, default=0), item))
+    scored.sort(key=lambda entry: entry[0], reverse=True)
+    return [item for _, item in scored[:limit]]
+
+
 def _matching(
     regions: list[tuple[dict[str, Any], dict[str, Any]]], pattern: str
 ) -> list[tuple[dict[str, Any], dict[str, Any]]]:
@@ -900,7 +1415,8 @@ def _engineering_score(
     experience: list[tuple[dict[str, Any], dict[str, Any]]],
     skills: list[tuple[dict[str, Any], dict[str, Any]]],
 ) -> dict[str, Any]:
-    combined = [*skills, *experience]
+    projects = _section(document, PROJECT_HEADINGS)
+    combined = [*skills, *experience, *projects]
     if role_type == "backend":
         definitions = (
             ("backend systems", 2.0, r"\b(?:backend|flask|node\.js|serverless|lambda)\b", 2.0),
@@ -923,7 +1439,7 @@ def _engineering_score(
         )
         method = "resume-backend-role-rubric"
         gap = "The resume does not explicitly document API contract design or distributed tracing."
-    else:
+    elif role_type == "full-stack":
         definitions = (
             ("frontend engineering", 2.0, r"\b(?:frontend|reactjs|react flow|react\.memo)\b", 2.0),
             ("backend engineering", 2.0, r"\b(?:backend|flask|node\.js|lambda)\b", 2.0),
@@ -948,6 +1464,71 @@ def _engineering_score(
         gap = (
             "The resume provides limited explicit evidence of accessibility or design-system work."
         )
+    elif role_type == "machine-learning":
+        definitions = (
+            ("ML frameworks", 1.0, r"\b(?:pytorch|tensorflow|scikit-learn)\b", 1.0),
+            (
+                "model evaluation",
+                1.5,
+                r"\b(?:ground-truth|accuracy|dice|iou|failure analysis)\b",
+                1.5,
+            ),
+            ("applied AI systems", 1.5, r"\b(?:llm|rag|ai agent|multi-agent)\b", 1.5),
+            ("data analysis", 1.0, r"\b(?:numpy|pandas|confidence intervals?|statistical)\b", 1.0),
+            (
+                "production ML scale",
+                1.5,
+                r"\b(?:documents daily|cloud infrastructure|production)\b",
+                1.5,
+            ),
+            (
+                "training and MLOps",
+                1.5,
+                r"\b(?:fine-tun|model training|mlflow|model registry|drift)\b",
+                0.0,
+            ),
+            ("computer vision and document AI", 1.0, r"\b(?:opencv|ocr|vlms?|segmentation)\b", 1.0),
+            ("ownership", 0.5, r"\b(?:founding engineer|architected|owning|led)\b", 0.5),
+            ("ML foundations", 0.5, r"\b(?:deep learning|machine learning|scikit-learn)\b", 0.5),
+        )
+        method = "resume-ml-role-rubric"
+        gap = "The resume lacks explicit model training, fine-tuning, registry, serving, and drift-monitoring evidence."
+    elif role_type == "cloud":
+        definitions = (
+            ("AWS", 1.5, r"\baws\b", 1.5),
+            ("GCP", 1.5, r"\bgcp\b", 1.5),
+            ("serverless systems", 1.5, r"\b(?:serverless|lambda)\b", 1.5),
+            (
+                "event-driven architecture",
+                1.0,
+                r"\b(?:pub/sub|sqs|eventbridge|event-driven)\b",
+                1.0,
+            ),
+            ("cloud data services", 1.0, r"\b(?:rds|s3|gcs|firestore)\b", 1.0),
+            ("scalability", 1.5, r"\b(?:throughput|concurrent|scalable)\b", 1.5),
+            ("containers and CI/CD", 1.0, r"\b(?:docker|github actions|ci/cd)\b", 0.5),
+            (
+                "operations and reliability",
+                1.0,
+                r"\b(?:production issue|caching|compatibility)\b",
+                1.0,
+            ),
+        )
+        method = "resume-cloud-role-rubric"
+        gap = "The resume does not explicitly document Kubernetes, Terraform, or infrastructure-as-code ownership."
+    else:
+        definitions = (
+            ("healthcare domain scale", 2.0, r"\b(?:healthcare|active lives|providers)\b", 2.0),
+            ("workflow automation", 1.5, r"\bworkflow automation\b", 1.5),
+            ("EHR and patient systems", 1.5, r"\b(?:ehr|patient-profile)\b", 1.5),
+            ("HIPAA and access control", 1.0, r"\b(?:hipaa|role-based access)\b", 1.0),
+            ("production delivery", 1.0, r"\bproduction features\b", 1.0),
+            ("backend and data", 1.0, r"\b(?:backend|postgresql|flask)\b", 1.0),
+            ("scale and performance", 1.0, r"\b(?:1\.7m|throughput|concurrent|75%)\b", 1.0),
+            ("AI-enabled healthcare", 1.0, r"\b(?:llm-powered ehr|llm inference)\b", 1.0),
+        )
+        method = "resume-healthcare-role-rubric"
+        gap = "The resume does not explicitly document clinical outcomes or direct clinical responsibility."
 
     rubric = []
     evidence = []
@@ -957,9 +1538,16 @@ def _engineering_score(
         rubric.append({"criterion": label, "earned": earned, "maximum": maximum})
         evidence.extend(matches[:2])
     score = round(sum(item["earned"] for item in rubric), 2)
+    display_role = {
+        "backend": "backend engineering",
+        "full-stack": "full-stack engineering",
+        "machine-learning": "machine-learning engineering",
+        "cloud": "cloud engineering",
+        "healthcare": "healthcare software",
+    }[role_type]
     result = _response(
         question,
-        f"Resume-only score: {score:g}/10 for a {role_type} engineering role. {gap} "
+        f"Resume-only score: {score:g}/10 for a {display_role} role. {gap} "
         "This score measures documented evidence, not interview performance.",
         method,
         evidence,

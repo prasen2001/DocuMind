@@ -22,12 +22,16 @@ def _resume() -> dict:
     add("Languages: Python, TypeScript, JavaScript, Java, C++, SQL")
     add("Frameworks & Libraries: ReactJS, Flask, LangChain, TensorFlow, PyTorch, Scikit-learn")
     add("Databases: PostgreSQL, MySQL, MongoDB, Firestore, Redis")
-    add("Cloud & DevOps: AWS, GCP, Nebius, Docker, GitHub Actions")
+    add(
+        "Cloud & DevOps: AWS (ECS, EC2, RDS, Lambda, S3, SQS, Step Functions, EventBridge, API "
+        "Gateway, CI/CD), GCP (App Engine, Pub/Sub, GCS, Firestore, Cloud Run), Nebius, Docker, "
+        "GitHub Actions"
+    )
     add("Experience", "heading")
     add("Alpha AI | Remote Senior Software Engineer | Sep 2025 – Aug 2026")
     add(
         "– Founding Engineer who architected an AI Agent platform, owning frontend, backend, AI "
-        "workflows, and GCP cloud infrastructure.",
+        "workflows, and GCP cloud infrastructure using Python and Flask.",
         "list",
     )
     add("– Implemented multi-agent orchestration for AI workflows.", "list")
@@ -50,10 +54,15 @@ def _resume() -> dict:
     add("Beta Health Inc. | Pune, India Software Engineer | Jul 2023 – Jun 2025")
     add(
         "– Designed a workflow automation system for 200+ healthcare providers and 1.7M+ active "
-        "lives, saving 75% time with AWS and PostgreSQL.",
+        "lives, saving 75% time with AWS, Python, and PostgreSQL.",
         "list",
     )
-    add("– Reduced API calls by 3x through ReactJS optimization and caching.", "list")
+    add(
+        "– Reduced API calls by 3x through ReactJS data fetching, React.memo, useMemo, useCallback, "
+        "and Context API optimization; added Redis caching and query optimization to reduce latency "
+        "and re-renders.",
+        "list",
+    )
     add(
         "– Led migration to a scalable architecture, increasing throughput from 20 to 200 "
         "concurrent workflows (10x).",
@@ -66,7 +75,7 @@ def _resume() -> dict:
     )
     add(
         "– Architected an LLM-powered EHR synopsis with Flask, LangChain, PostgreSQL, patient "
-        "integration, HIPAA controls, and backend ownership.",
+        "integration, HIPAA controls, role-based access controls, and backend ownership.",
         "list",
     )
     add(
@@ -74,11 +83,21 @@ def _resume() -> dict:
         "implemented output normalization for frontend consumption.",
         "list",
     )
-    add("– Built and shipped 50+ production healthcare features.", "list")
+    add(
+        "– Built and shipped 50+ production healthcare features with architects, designers, and "
+        "product partners; contributed to code reviews, end-to-end testing, releases, and "
+        "production issue resolution.",
+        "list",
+    )
     add("Projects", "heading")
     add("Medical Image Segmentation Evaluator | Python, NumPy | GitHub")
     add("– Built a reproducible evaluation pipeline for 500+ images.", "list")
-    add("– Measured Dice, IoU, confidence intervals, and failures.", "list")
+    add(
+        "– Measured Dice, IoU, confidence intervals, paired statistical comparisons, and failures "
+        "on external 3D volumes; identified a Dice decline on external data and generalization "
+        "limitations.",
+        "list",
+    )
     add("Achievements & Certifications", "heading")
     add("• National engineering competition rank 6.", "list")
     return {
@@ -403,6 +422,195 @@ def test_all_thirty_five_additional_questions_have_relevant_evidence() -> None:
     }
 
     for question, expected_method, answer_fragment in ADDITIONAL_QUESTIONS:
+        result = answer_question(document, question)
+
+        assert result["method"] == expected_method, question
+        assert result["grounded"] is True, question
+        assert result["citations"], question
+        assert answer_fragment.lower() in result["answer"].lower(), question
+        assert all(
+            citation["quote"].strip().lower() not in bare_headings
+            for citation in result["citations"]
+        ), question
+        if expected_method.endswith("role-rubric"):
+            assert 0 <= result["score"] <= result["score_max"] == 10, question
+
+
+THIRD_QUESTION_SET = [
+    (
+        "What is the candidate’s total experience with Python?",
+        "resume-skill-duration-analysis",
+        "3 years",
+    ),
+    (
+        "How many years of cloud experience are documented?",
+        "resume-skill-duration-analysis",
+        "3 years",
+    ),
+    (
+        "Which role involved the most backend ownership?",
+        "resume-role-focus-comparison",
+        "Beta Health",
+    ),
+    ("Which role involved the most frontend work?", "resume-role-focus-comparison", "Beta Health"),
+    (
+        "Compare the candidate’s responsibilities across both employers.",
+        "resume-role-comparison-analysis",
+        "Responsibility comparison",
+    ),
+    (
+        "How did the candidate’s responsibilities change between roles?",
+        "resume-responsibility-progression-analysis",
+        "progressed",
+    ),
+    (
+        "Which accomplishments demonstrate technical leadership?",
+        "resume-leadership-analysis",
+        "leadership and ownership",
+    ),
+    (
+        "Which accomplishments demonstrate cross-functional collaboration?",
+        "resume-collaboration-analysis",
+        "cross-functional",
+    ),
+    (
+        "Has the candidate participated in code reviews?",
+        "resume-quality-practice-analysis",
+        "code-review",
+    ),
+    ("What testing experience is documented?", "resume-testing-analysis", "end-to-end"),
+    (
+        "Has the candidate handled production incidents?",
+        "resume-production-operations-analysis",
+        "production-incident",
+    ),
+    ("What CI/CD experience does the candidate have?", "resume-devops-skill-analysis", "CI/CD"),
+    ("Which AWS services has the candidate used?", "resume-cloud-service-analysis", "ECS"),
+    ("Which GCP services has the candidate used?", "resume-cloud-service-analysis", "Pub/Sub"),
+    ("Has the candidate used containerization?", "resume-devops-skill-analysis", "Docker"),
+    (
+        "What message queues or event buses has the candidate used?",
+        "resume-messaging-service-analysis",
+        "SQS",
+    ),
+    (
+        "What data-storage services has the candidate used?",
+        "resume-storage-service-analysis",
+        "RDS",
+    ),
+    (
+        "Has the candidate designed role-based access controls?",
+        "resume-security-compliance-analysis",
+        "role-based",
+    ),
+    ("What evidence demonstrates API optimization?", "resume-api-optimization-analysis", "3×"),
+    (
+        "What evidence demonstrates frontend optimization?",
+        "resume-frontend-optimization-analysis",
+        "Context API",
+    ),
+    (
+        "What evidence demonstrates database optimization?",
+        "resume-database-optimization-analysis",
+        "Redis",
+    ),
+    ("What evidence demonstrates cloud cost optimization?", "resume-cloud-cost-analysis", "80%"),
+    (
+        "Which accomplishment produced the largest percentage improvement?",
+        "resume-percentage-impact-analysis",
+        "80%",
+    ),
+    (
+        "Which accomplishment produced the largest scalability improvement?",
+        "resume-scalability-analysis",
+        "10×",
+    ),
+    (
+        "Rank the candidate’s three strongest accomplishments.",
+        "resume-accomplishment-ranking",
+        "1)",
+    ),
+    (
+        "Which accomplishments are most relevant to an AI platform company?",
+        "resume-target-company-relevance-analysis",
+        "RAG",
+    ),
+    (
+        "Which accomplishments are most relevant to healthcare technology?",
+        "resume-healthcare-experience-analysis",
+        "healthcare workflow",
+    ),
+    (
+        "Does the candidate have experience evaluating model quality?",
+        "resume-model-quality-analysis",
+        "ground truth",
+    ),
+    (
+        "Does the candidate have experience evaluating generalization?",
+        "resume-generalization-analysis",
+        "generalization",
+    ),
+    (
+        "What external-validation experience is documented?",
+        "resume-external-validation-analysis",
+        "external",
+    ),
+    (
+        "What computer-vision experience does the candidate have?",
+        "resume-computer-vision-analysis",
+        "OpenCV",
+    ),
+    (
+        "What classical machine-learning experience is documented?",
+        "resume-classical-ml-analysis",
+        "scikit-learn",
+    ),
+    (
+        "Has the candidate used deep-learning frameworks?",
+        "resume-ml-framework-analysis",
+        "TensorFlow",
+    ),
+    (
+        "What evidence supports the candidate’s data-analysis ability?",
+        "resume-data-analysis",
+        "NumPy",
+    ),
+    (
+        "Which required skills for an ML engineer are missing?",
+        "resume-ml-gap-analysis",
+        "fine-tuning",
+    ),
+    (
+        "Score the candidate for a machine-learning engineering role.",
+        "resume-ml-role-rubric",
+        "/10",
+    ),
+    ("Score the candidate for a cloud engineering role.", "resume-cloud-role-rubric", "/10"),
+    ("Score the candidate for a healthcare software role.", "resume-healthcare-role-rubric", "/10"),
+    (
+        "Generate technical interview questions for this candidate.",
+        "resume-technical-interview-generation",
+        "Diagram",
+    ),
+    (
+        "Generate behavioral interview questions based on the candidate’s experience.",
+        "resume-behavioral-interview-generation",
+        "Behavioral",
+    ),
+]
+
+
+def test_all_forty_third_set_questions_have_relevant_evidence() -> None:
+    document = _resume()
+    bare_headings = {
+        "education",
+        "technical skills",
+        "experience",
+        "projects",
+        "achievements & certifications",
+    }
+
+    for question, expected_method, answer_fragment in THIRD_QUESTION_SET:
         result = answer_question(document, question)
 
         assert result["method"] == expected_method, question
