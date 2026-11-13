@@ -235,3 +235,183 @@ def test_all_thirty_resume_questions_have_grounded_non_heading_evidence() -> Non
             citation["quote"].strip().lower() not in bare_headings
             for citation in result["citations"]
         ), question
+
+
+ADDITIONAL_QUESTIONS = [
+    (
+        "Summarize the candidate’s professional background.",
+        "resume-professional-summary",
+        "3 years",
+    ),
+    (
+        "Create a chronological career timeline.",
+        "resume-career-timeline-analysis",
+        "Career timeline",
+    ),
+    ("How long did the candidate work at each company?", "resume-role-duration-analysis", "1 year"),
+    ("Are there gaps between the candidate’s jobs?", "resume-employment-gap-analysis", "2 months"),
+    ("Did any employment periods overlap?", "resume-employment-overlap-analysis", "do not overlap"),
+    (
+        "How has the candidate’s seniority progressed?",
+        "resume-seniority-progression-analysis",
+        "Senior Software Engineer",
+    ),
+    (
+        "Which role appears to have had the greatest impact?",
+        "resume-role-impact-analysis",
+        "greatest documented impact",
+    ),
+    (
+        "What leadership or ownership experience is documented?",
+        "resume-leadership-analysis",
+        "leadership and ownership",
+    ),
+    (
+        "Has the candidate worked as a founding engineer?",
+        "resume-leadership-analysis",
+        "founding-engineer",
+    ),
+    (
+        "Which accomplishments demonstrate system-design ability?",
+        "resume-system-design-analysis",
+        "system-design",
+    ),
+    (
+        "What APIs or backend frameworks has the candidate used?",
+        "resume-framework-analysis",
+        "Flask",
+    ),
+    ("What frontend frameworks has the candidate used?", "resume-framework-analysis", "ReactJS"),
+    ("What infrastructure and DevOps tools are listed?", "resume-devops-skill-analysis", "AWS"),
+    (
+        "Does the candidate have event-driven architecture experience?",
+        "resume-architecture-evidence-analysis",
+        "event-driven",
+    ),
+    (
+        "Has the candidate built serverless systems?",
+        "resume-architecture-evidence-analysis",
+        "serverless",
+    ),
+    (
+        "What caching experience does the candidate have?",
+        "resume-caching-analysis",
+        "response caching",
+    ),
+    (
+        "Has the candidate designed asynchronous processing systems?",
+        "resume-architecture-evidence-analysis",
+        "asynchronous",
+    ),
+    (
+        "What evidence demonstrates database-design experience?",
+        "resume-database-design-analysis",
+        "database design",
+    ),
+    (
+        "Has the candidate worked with vector databases?",
+        "resume-database-design-analysis",
+        "vector-database",
+    ),
+    (
+        "What security or compliance experience is documented?",
+        "resume-security-compliance-analysis",
+        "HIPAA",
+    ),
+    (
+        "Does the candidate have HIPAA experience?",
+        "resume-security-compliance-analysis",
+        "HIPAA-related",
+    ),
+    (
+        "What automation systems has the candidate built?",
+        "resume-automation-system-analysis",
+        "automation system",
+    ),
+    (
+        "Has the candidate optimized application performance?",
+        "resume-performance-optimization-analysis",
+        "3×",
+    ),
+    (
+        "What is the largest workload the candidate has handled?",
+        "resume-workload-analysis",
+        "1.7M+ active lives",
+    ),
+    (
+        "Which accomplishments demonstrate cost optimization?",
+        "resume-cost-reduction-analysis",
+        "80%",
+    ),
+    (
+        "Which accomplishments demonstrate reliability improvements?",
+        "resume-reliability-analysis",
+        "Reliability-related",
+    ),
+    (
+        "What experience does the candidate have with evaluation metrics?",
+        "resume-evaluation-metric-analysis",
+        "Dice",
+    ),
+    (
+        "Has the candidate worked with medical imaging?",
+        "resume-project-domain-analysis",
+        "medical-imaging",
+    ),
+    (
+        "What statistical-analysis experience is documented?",
+        "resume-statistical-analysis",
+        "confidence intervals",
+    ),
+    (
+        "Which claims include measurable evidence?",
+        "resume-measurable-claim-analysis",
+        "numeric evidence",
+    ),
+    (
+        "Which résumé claims lack measurable evidence?",
+        "resume-unmeasured-claim-analysis",
+        "without an explicit",
+    ),
+    (
+        "What qualifications match a senior software engineering role?",
+        "resume-role-qualification-analysis",
+        "Senior Software Engineer",
+    ),
+    ("Score the candidate for a backend engineering role.", "resume-backend-role-rubric", "/10"),
+    (
+        "Score the candidate for a full-stack engineering role.",
+        "resume-full-stack-role-rubric",
+        "/10",
+    ),
+    (
+        "What interview questions should be asked to verify the candidate’s claims?",
+        "resume-interview-question-generation",
+        "Walk through",
+    ),
+]
+
+
+def test_all_thirty_five_additional_questions_have_relevant_evidence() -> None:
+    document = _resume()
+    bare_headings = {
+        "education",
+        "technical skills",
+        "experience",
+        "projects",
+        "achievements & certifications",
+    }
+
+    for question, expected_method, answer_fragment in ADDITIONAL_QUESTIONS:
+        result = answer_question(document, question)
+
+        assert result["method"] == expected_method, question
+        assert result["grounded"] is True, question
+        assert result["citations"], question
+        assert answer_fragment.lower() in result["answer"].lower(), question
+        assert all(
+            citation["quote"].strip().lower() not in bare_headings
+            for citation in result["citations"]
+        ), question
+        if expected_method.endswith("role-rubric"):
+            assert 0 <= result["score"] <= result["score_max"] == 10, question
