@@ -173,8 +173,8 @@ def answer_question(
     """Retrieve answer-sized passages while preserving their exact source regions."""
     analytical_answer = (
         _answer_ai_role_score(document, question)
-        or _answer_ai_experience(document, question)
         or answer_resume_fact(document, question)
+        or _answer_ai_experience(document, question)
         or _answer_experience_duration(document, question, reference_date)
         or _answer_resume_projects(document, question)
         or _answer_resume_achievements(document, question)
@@ -259,8 +259,8 @@ def answer_question_semantic(
     """Retrieve semantically similar evidence and return only extractive source text."""
     analytical_answer = (
         _answer_ai_role_score(document, question)
-        or _answer_ai_experience(document, question)
         or answer_resume_fact(document, question)
+        or _answer_ai_experience(document, question)
         or _answer_experience_duration(document, question, reference_date)
         or _answer_resume_projects(document, question)
         or _answer_resume_achievements(document, question)

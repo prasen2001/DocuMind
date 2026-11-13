@@ -305,6 +305,12 @@ def test_ai_experience_diversifies_evidence_across_roles() -> None:
     assert "fold-ai" in {citation["region_id"] for citation in score_result["citations"]}
     assert "interview performance" in score_result["answer"]
 
+    gap_result = answer_question(resume, "Which skill is missing for an AI engineer?")
+
+    assert gap_result["method"] == "resume-gap-analysis"
+    assert "fine-tuning" in gap_result["answer"]
+    assert gap_result["method"] != "resume-ai-experience-analysis"
+
 
 def test_semantic_ai_question_uses_role_diverse_analysis() -> None:
     resume = {

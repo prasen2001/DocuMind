@@ -1122,9 +1122,10 @@ def answer_resume_fact(document: dict[str, Any], question: str) -> dict[str, Any
             evidence,
         )
 
-    if re.search(r"weakness|missing qualifications?|gaps?|lacks?", q) and re.search(
-        r"\bai\b|artificial intelligence|machine learning", q
-    ):
+    if re.search(
+        r"weakness|missing (?:qualifications?|skills?)|(?:qualifications?|skills?).{0,30}missing|gaps?|lacks?",
+        q,
+    ) and re.search(r"\bai\b|artificial intelligence|machine learning", q):
         ai_evidence = _matching(
             experience,
             r"\b(?:ai agent|rag|llm|document intelligence|multi-agent)\b",
