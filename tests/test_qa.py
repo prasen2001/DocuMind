@@ -195,6 +195,47 @@ def test_project_question_cites_project_entry_instead_of_section_heading() -> No
     ]
 
 
+def test_achievement_question_cites_entries_instead_of_section_heading() -> None:
+    resume = {
+        "id": "achievement-resume",
+        "filename": "resume.pdf",
+        "pages": [
+            {
+                "number": 1,
+                "regions": [
+                    {
+                        "id": "achievements-heading",
+                        "type": "heading",
+                        "bbox": [10, 10, 250, 30],
+                        "text": "Achievements & Certifications",
+                    },
+                    {
+                        "id": "rank-achievement",
+                        "type": "list",
+                        "bbox": [10, 35, 400, 55],
+                        "text": "• National Rank 6 in ABU Robocon.",
+                    },
+                    {
+                        "id": "certification",
+                        "type": "list",
+                        "bbox": [10, 60, 400, 80],
+                        "text": "• ML for All – University of London.",
+                    },
+                ],
+            }
+        ],
+    }
+
+    result = answer_question(resume, "Highlight the achievements")
+
+    assert result["method"] == "resume-achievement-section-analysis"
+    assert [citation["region_id"] for citation in result["citations"]] == [
+        "rank-achievement",
+        "certification",
+    ]
+    assert all("Achievements & Certifications" not in item["quote"] for item in result["citations"])
+
+
 def test_ai_experience_diversifies_evidence_across_roles() -> None:
     resume = {
         **RESUME,

@@ -1,3 +1,3 @@
 """DocuMind: evidence-first document intelligence."""
 
-__version__ = "0.12.2"
+__version__ = "0.12.3"

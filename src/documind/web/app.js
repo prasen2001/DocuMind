@@ -244,6 +244,7 @@ async function ask(question) {
       "resume-ai-experience-analysis": "Resume AI analysis",
       "resume-experience-date-analysis": "Date analysis",
       "resume-project-section-analysis": "Project analysis",
+      "resume-achievement-section-analysis": "Achievement analysis",
       "semantic-extractive-rag": "Semantic evidence",
       "lexical-evidence-retrieval": "Local evidence",
     };

@@ -64,6 +64,13 @@ PROJECT_QUESTION_RE = re.compile(
     r"|(?:\bcompleted\b|\bbuilt\b|\bcreated\b|\bdeveloped\b|\bworked\b|\bcandidate\b).*\bprojects?\b",
     re.IGNORECASE,
 )
+ACHIEVEMENT_QUESTION_RE = re.compile(
+    r"(?:\bhighlight\b|\bshow\b|\blist\b|\bwhat\b|\bwhich\b).{0,60}"
+    r"\b(?:achievements?|awards?|certifications?|honors?)\b"
+    r"|\b(?:achievements?|awards?|certifications?|honors?)\b.{0,60}"
+    r"(?:\bhighlight\b|\bshow\b|\blist\b|\bcandidate\b|\bresume\b)",
+    re.IGNORECASE,
+)
 RESUME_LIST_MARKER_RE = re.compile(r"^(?:[•●▪◦*–—-]|\d+[.)])\s+")
 AI_EVIDENCE_RE = re.compile(
     r"\b(?:ai|artificial intelligence|llms?|large language models?|multi-agent|agentic|rag|"
@@ -93,6 +100,14 @@ AI_CAPABILITIES = (
 )
 EXPERIENCE_HEADINGS = {"experience", "work experience", "professional experience", "employment"}
 PROJECT_HEADINGS = {"projects", "project experience", "personal projects", "selected projects"}
+ACHIEVEMENT_HEADINGS = {
+    "achievements",
+    "achievements & certifications",
+    "awards",
+    "certifications",
+    "honors",
+    "honors & awards",
+}
 SECTION_HEADINGS = {
     "education",
     "projects",
@@ -104,6 +119,8 @@ SECTION_HEADINGS = {
     "certifications",
     "publications",
     "awards",
+    "honors",
+    "honors & awards",
     "personal projects",
     "selected projects",
 }
@@ -158,6 +175,7 @@ def answer_question(
         or _answer_ai_experience(document, question)
         or _answer_experience_duration(document, question, reference_date)
         or _answer_resume_projects(document, question)
+        or _answer_resume_achievements(document, question)
     )
     if analytical_answer:
         return analytical_answer
@@ -242,6 +260,7 @@ def answer_question_semantic(
         or _answer_ai_experience(document, question)
         or _answer_experience_duration(document, question, reference_date)
         or _answer_resume_projects(document, question)
+        or _answer_resume_achievements(document, question)
     )
     if analytical_answer:
         return analytical_answer
@@ -322,6 +341,39 @@ def _answer_resume_projects(document: dict[str, Any], question: str) -> dict[str
         "method": "resume-project-section-analysis",
         "citations": citations,
         "notice": "Project headings are excluded; citations point to project entries and their details.",
+    }
+
+
+def _answer_resume_achievements(document: dict[str, Any], question: str) -> dict[str, Any] | None:
+    if not ACHIEVEMENT_QUESTION_RE.search(question):
+        return None
+
+    regions = _achievement_regions(document)
+    if not regions:
+        return _abstention(question, "I could not find achievement entries in this resume.")
+
+    citations = [
+        {
+            "id": f"citation-{index}",
+            "page": page["number"],
+            "bbox": region["bbox"],
+            "region_id": region["id"],
+            "quote": region["text"][:500],
+            "score": 1.0,
+        }
+        for index, (page, region) in enumerate(regions[:12], start=1)
+    ]
+    return {
+        "question": question,
+        "answer": (
+            f"The resume contains {len(citations)} achievement, certification, or credential "
+            f"entr{'y' if len(citations) == 1 else 'ies'}. Each complete entry is highlighted "
+            "in the cited source regions."
+        ),
+        "grounded": True,
+        "method": "resume-achievement-section-analysis",
+        "citations": citations,
+        "notice": "The section heading is excluded; citations point to the entries beneath it.",
     }
 
 
@@ -685,6 +737,26 @@ def _project_regions(
             if in_projects and normalized in SECTION_HEADINGS:
                 return regions
             if in_projects:
+                regions.append((page, region))
+    return regions
+
+
+def _achievement_regions(
+    document: dict[str, Any],
+) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    regions: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    in_achievements = False
+    for page in document.get("pages", []):
+        for region in page.get("regions", []):
+            if not region.get("text", "").strip():
+                continue
+            normalized = re.sub(r"[^a-z& ]", "", region["text"].lower()).strip()
+            if normalized in ACHIEVEMENT_HEADINGS:
+                in_achievements = True
+                continue
+            if in_achievements and normalized in SECTION_HEADINGS:
+                return regions
+            if in_achievements:
                 regions.append((page, region))
     return regions
 
