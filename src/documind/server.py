@@ -33,6 +33,7 @@ class DocuMindServer(ThreadingHTTPServer):
     daemon_threads = True
 
     def __init__(self, address: tuple[str, int], store: DocumentStore) -> None:
+        self.jobs: IngestionJobs | None = None
         super().__init__(address, DocuMindHandler)
         self.store = store
         self.reviews = ReviewQueue(store.root / "reviews.json")
@@ -43,7 +44,8 @@ class DocuMindServer(ThreadingHTTPServer):
         )
 
     def server_close(self) -> None:
-        self.jobs.shutdown()
+        if self.jobs is not None:
+            self.jobs.shutdown()
         super().server_close()
 
 
