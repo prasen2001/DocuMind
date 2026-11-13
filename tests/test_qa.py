@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from datetime import date
 
 from documind.qa import answer_question, answer_question_semantic
 
@@ -26,6 +27,54 @@ DOCUMENT = {
     ],
 }
 
+RESUME = {
+    "id": "resume-1",
+    "filename": "resume.pdf",
+    "pages": [
+        {
+            "number": 1,
+            "regions": [
+                {
+                    "id": "education-heading",
+                    "type": "heading",
+                    "bbox": [10, 10, 200, 30],
+                    "text": "Education",
+                },
+                {
+                    "id": "degree",
+                    "type": "paragraph",
+                    "bbox": [10, 35, 400, 55],
+                    "text": "University Aug 2019 – Jun 2023",
+                },
+                {
+                    "id": "experience-heading",
+                    "type": "heading",
+                    "bbox": [10, 60, 200, 80],
+                    "text": "Experience",
+                },
+                {
+                    "id": "role-one",
+                    "type": "paragraph",
+                    "bbox": [10, 85, 400, 115],
+                    "text": "Senior Software Engineer Sep 2025 – Aug 2026",
+                },
+                {
+                    "id": "role-two",
+                    "type": "paragraph",
+                    "bbox": [10, 120, 400, 150],
+                    "text": "Software Engineer Jul 2023 – Jun 2025",
+                },
+                {
+                    "id": "projects-heading",
+                    "type": "heading",
+                    "bbox": [10, 155, 200, 175],
+                    "text": "Projects",
+                },
+            ],
+        }
+    ],
+}
+
 
 def test_answer_is_grounded_in_matching_region() -> None:
     result = answer_question(DOCUMENT, "What revenue was reported?")
@@ -41,6 +90,55 @@ def test_answer_abstains_without_evidence() -> None:
 
     assert result["grounded"] is False
     assert result["citations"] == []
+
+
+def test_answer_calculates_resume_experience_from_dated_roles() -> None:
+    result = answer_question(RESUME, "How many years of experience is present?")
+
+    assert result["grounded"] is True
+    assert result["method"] == "resume-experience-date-analysis"
+    assert "3 years" in result["answer"]
+    assert len(result["citations"]) == 2
+    assert {citation["region_id"] for citation in result["citations"]} == {
+        "role-one",
+        "role-two",
+    }
+
+
+def test_resume_experience_handles_present_and_overlapping_roles() -> None:
+    resume = {
+        **RESUME,
+        "pages": [
+            {
+                **RESUME["pages"][0],
+                "regions": [
+                    *RESUME["pages"][0]["regions"][:3],
+                    {
+                        "id": "current-role",
+                        "type": "paragraph",
+                        "bbox": [10, 85, 400, 115],
+                        "text": "Engineer Jan 2024 - Present",
+                    },
+                    {
+                        "id": "overlap-role",
+                        "type": "paragraph",
+                        "bbox": [10, 120, 400, 150],
+                        "text": "Consultant Jan 2025 to Dec 2025",
+                    },
+                    RESUME["pages"][0]["regions"][-1],
+                ],
+            }
+        ],
+    }
+
+    result = answer_question(
+        resume,
+        "What is the total professional experience?",
+        reference_date=date(2026, 11, 12),
+    )
+
+    assert "2 years and 11 months" in result["answer"]
+    assert "counted only once" in result["answer"]
 
 
 class SemanticTestEncoder:

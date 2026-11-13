@@ -3,12 +3,59 @@ from __future__ import annotations
 import math
 import re
 from collections import Counter
+from datetime import date
 from typing import Any
 
 from .semantic import Encoder, semantic_search_documents
 
 TOKEN_RE = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_-]+")
 SENTENCE_RE = re.compile(r"(?<=[.!?])\s+|\n+")
+MONTHS = {
+    name.lower(): number
+    for number, names in enumerate(
+        (
+            ("jan", "january"),
+            ("feb", "february"),
+            ("mar", "march"),
+            ("apr", "april"),
+            ("may",),
+            ("jun", "june"),
+            ("jul", "july"),
+            ("aug", "august"),
+            ("sep", "sept", "september"),
+            ("oct", "october"),
+            ("nov", "november"),
+            ("dec", "december"),
+        ),
+        start=1,
+    )
+    for name in names
+}
+MONTH_PATTERN = "|".join(sorted(MONTHS, key=len, reverse=True))
+DATE_RANGE_RE = re.compile(
+    rf"\b(?P<start_month>{MONTH_PATTERN})\.?\s+(?P<start_year>\d{{4}})\s*"
+    rf"(?:[-–—]|\bto\b)\s*"
+    rf"(?:(?P<end_month>{MONTH_PATTERN})\.?\s+(?P<end_year>\d{{4}})|(?P<present>present|current|now))\b",
+    re.IGNORECASE,
+)
+EXPERIENCE_QUESTION_RE = re.compile(
+    r"\bexperience\b.*(?:\byears?\b|\bmonths?\b|\bhow long\b|\btotal\b)"
+    r"|(?:\byears?\b|\bmonths?\b|\bhow long\b|\btotal\b).*\bexperience\b",
+    re.IGNORECASE,
+)
+EXPERIENCE_HEADINGS = {"experience", "work experience", "professional experience", "employment"}
+SECTION_HEADINGS = {
+    "education",
+    "projects",
+    "project experience",
+    "technical skills",
+    "skills",
+    "achievements",
+    "achievements & certifications",
+    "certifications",
+    "publications",
+    "awards",
+}
 STOP_WORDS = {
     "a",
     "an",
@@ -47,8 +94,18 @@ def _tokens(text: str) -> list[str]:
     return [token.lower() for token in TOKEN_RE.findall(text) if token.lower() not in STOP_WORDS]
 
 
-def answer_question(document: dict[str, Any], question: str, *, limit: int = 3) -> dict[str, Any]:
+def answer_question(
+    document: dict[str, Any],
+    question: str,
+    *,
+    limit: int = 3,
+    reference_date: date | None = None,
+) -> dict[str, Any]:
     """Retrieve answer-sized passages while preserving their exact source regions."""
+    analytical_answer = _answer_experience_duration(document, question, reference_date)
+    if analytical_answer:
+        return analytical_answer
+
     query_tokens = _tokens(question)
     if not query_tokens:
         return _abstention(question, "Please ask a more specific question.")
@@ -121,8 +178,13 @@ def answer_question_semantic(
     *,
     limit: int = 3,
     encoder: Encoder | None = None,
+    reference_date: date | None = None,
 ) -> dict[str, Any]:
     """Retrieve semantically similar evidence and return only extractive source text."""
+    analytical_answer = _answer_experience_duration(document, question, reference_date)
+    if analytical_answer:
+        return analytical_answer
+
     result = semantic_search_documents([document], question, limit=limit, encoder=encoder)
     matches = [match for match in result["matches"] if match["score"] > 0]
     if not matches:
@@ -149,6 +211,89 @@ def answer_question_semantic(
         "citations": citations,
         "notice": "This answer contains only retrieved source text; no unsupported text was generated.",
     }
+
+
+def _answer_experience_duration(
+    document: dict[str, Any], question: str, reference_date: date | None
+) -> dict[str, Any] | None:
+    if not EXPERIENCE_QUESTION_RE.search(question):
+        return None
+
+    regions = [
+        (page, region)
+        for page in document.get("pages", [])
+        for region in page.get("regions", [])
+        if region.get("text", "").strip()
+    ]
+    in_experience = False
+    evidence: list[tuple[dict[str, Any], dict[str, Any], re.Match[str]]] = []
+    today = reference_date or date.today()
+    for page, region in regions:
+        normalized = re.sub(r"[^a-z& ]", "", region["text"].lower()).strip()
+        if normalized in EXPERIENCE_HEADINGS:
+            in_experience = True
+            continue
+        if in_experience and normalized in SECTION_HEADINGS:
+            break
+        if not in_experience:
+            continue
+        evidence.extend((page, region, match) for match in DATE_RANGE_RE.finditer(region["text"]))
+
+    intervals: list[tuple[int, int]] = []
+    for _, _, match in evidence:
+        start = int(match["start_year"]) * 12 + MONTHS[match["start_month"].lower()] - 1
+        if match["present"]:
+            end = today.year * 12 + today.month - 1
+        else:
+            end = int(match["end_year"]) * 12 + MONTHS[match["end_month"].lower()] - 1
+        if end >= start:
+            intervals.append((start, end))
+
+    if not intervals:
+        return _abstention(
+            question,
+            "I found the experience section, but could not verify dated employment ranges.",
+        )
+
+    covered_months = set()
+    for start, end in intervals:
+        covered_months.update(range(start, end + 1))
+    total_months = len(covered_months)
+    years, months = divmod(total_months, 12)
+    duration = _format_duration(years, months)
+    range_labels = list(dict.fromkeys(match.group(0) for _, _, match in evidence))
+    citations = [
+        {
+            "id": f"citation-{index}",
+            "page": page["number"],
+            "bbox": region["bbox"],
+            "region_id": region["id"],
+            "quote": match.group(0),
+            "score": 1.0,
+        }
+        for index, (page, region, match) in enumerate(evidence, start=1)
+    ]
+    return {
+        "question": question,
+        "answer": (
+            f"The resume shows approximately {duration} of professional experience across "
+            f"{len(intervals)} dated role{'s' if len(intervals) != 1 else ''}: "
+            f"{', '.join(range_labels)}. Overlapping months, if any, are counted only once."
+        ),
+        "grounded": True,
+        "method": "resume-experience-date-analysis",
+        "citations": citations,
+        "notice": "The duration is calculated from month-level employment dates in the Experience section.",
+    }
+
+
+def _format_duration(years: int, months: int) -> str:
+    parts = []
+    if years:
+        parts.append(f"{years} year{'s' if years != 1 else ''}")
+    if months:
+        parts.append(f"{months} month{'s' if months != 1 else ''}")
+    return " and ".join(parts) or "less than one month"
 
 
 def _abstention(question: str, message: str) -> dict[str, Any]:
