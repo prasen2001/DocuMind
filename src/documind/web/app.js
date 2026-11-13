@@ -239,8 +239,24 @@ async function ask(question) {
     state.citations = result.citations;
     $("#answer-empty").classList.add("hidden");
     $("#answer-result").classList.remove("hidden");
+    const methodLabels = {
+      "resume-ai-role-rubric": "AI role rubric",
+      "resume-ai-experience-analysis": "Resume AI analysis",
+      "resume-experience-date-analysis": "Date analysis",
+      "semantic-extractive-rag": "Semantic evidence",
+      "lexical-evidence-retrieval": "Local evidence",
+    };
+    $(".method-badge").textContent = methodLabels[result.method] || "Local";
+    const scoreCard = Number.isFinite(result.score) ? `
+      <section class="score-card" aria-label="Candidate score">
+        <div class="score-value">${escapeHtml(result.score)}<span>/${escapeHtml(result.score_max || 10)}</span></div>
+        <div class="score-rubric">${(result.rubric || []).map(item => `
+          <div><span>${escapeHtml(item.criterion)}</span><strong>${escapeHtml(item.earned)} / ${escapeHtml(item.maximum)}</strong></div>
+        `).join("")}</div>
+      </section>` : "";
     $("#answer-result").innerHTML = `
       <div class="grounding">${result.grounded ? `${result.citations.length} grounded source${result.citations.length === 1 ? "" : "s"}` : "No supporting evidence"}</div>
+      ${scoreCard}
       <p class="answer-text">${escapeHtml(result.answer)}</p>
       ${result.citations.map(citation => `<div class="citation" data-page="${citation.page}">
         <strong>Page ${citation.page} · Source region</strong><p>${escapeHtml(citation.quote)}</p></div>`).join("")}`;

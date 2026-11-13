@@ -52,6 +52,13 @@ AI_EXPERIENCE_QUESTION_RE = re.compile(
     r"(?:\bai\b|artificial intelligence|\bllms?\b|machine learning)",
     re.IGNORECASE,
 )
+AI_SCORE_QUESTION_RE = re.compile(
+    r"\b(?:score|rate|rating|rank|evaluate|assessment)\b.*"
+    r"(?:\bai\b|artificial intelligence|machine learning|\bllm\b).{0,80}\brole\b"
+    r"|\b(?:ai|artificial intelligence|machine learning|llm)\b.{0,80}\brole\b.*"
+    r"\b(?:score|rate|rating|rank|evaluate|assessment)\b",
+    re.IGNORECASE,
+)
 AI_EVIDENCE_RE = re.compile(
     r"\b(?:ai|artificial intelligence|llms?|large language models?|multi-agent|agentic|rag|"
     r"retrieval-augmented generation|langchain|machine learning|ml inference|model inference|"
@@ -137,8 +144,10 @@ def answer_question(
     reference_date: date | None = None,
 ) -> dict[str, Any]:
     """Retrieve answer-sized passages while preserving their exact source regions."""
-    analytical_answer = _answer_ai_experience(document, question) or _answer_experience_duration(
-        document, question, reference_date
+    analytical_answer = (
+        _answer_ai_role_score(document, question)
+        or _answer_ai_experience(document, question)
+        or _answer_experience_duration(document, question, reference_date)
     )
     if analytical_answer:
         return analytical_answer
@@ -218,8 +227,10 @@ def answer_question_semantic(
     reference_date: date | None = None,
 ) -> dict[str, Any]:
     """Retrieve semantically similar evidence and return only extractive source text."""
-    analytical_answer = _answer_ai_experience(document, question) or _answer_experience_duration(
-        document, question, reference_date
+    analytical_answer = (
+        _answer_ai_role_score(document, question)
+        or _answer_ai_experience(document, question)
+        or _answer_experience_duration(document, question, reference_date)
     )
     if analytical_answer:
         return analytical_answer
@@ -249,6 +260,171 @@ def answer_question_semantic(
         "model": result.get("model"),
         "citations": citations,
         "notice": "This answer contains only retrieved source text; no unsupported text was generated.",
+    }
+
+
+def _answer_ai_role_score(document: dict[str, Any], question: str) -> dict[str, Any] | None:
+    if not AI_SCORE_QUESTION_RE.search(question):
+        return None
+
+    ai_answer = _answer_ai_experience(document, "Does the candidate have AI experience?")
+    if not ai_answer or not ai_answer["grounded"]:
+        return _abstention(question, "I could not verify enough AI evidence to produce a score.")
+
+    experience_regions = _experience_regions(document)
+    experience_text = "\n".join(region["text"] for _, region in experience_regions)
+    document_text = "\n".join(
+        region.get("text", "")
+        for page in document.get("pages", [])
+        for region in page.get("regions", [])
+    )
+    date_matches = list(DATE_RANGE_RE.finditer(experience_text))
+    ai_role_count = sum(
+        bool(
+            AI_EVIDENCE_RE.search(
+                experience_text[
+                    match.end() : date_matches[index + 1].start()
+                    if index + 1 < len(date_matches)
+                    else len(experience_text)
+                ]
+            )
+        )
+        for index, match in enumerate(date_matches)
+    )
+
+    criteria = [
+        (
+            "LLM application engineering",
+            1.5,
+            1.5
+            if re.search(
+                r"\b(?:llms?|langchain|prompt optimization|model inference)\b",
+                experience_text,
+                re.IGNORECASE,
+            )
+            else 0,
+        ),
+        (
+            "RAG and agentic systems",
+            1.5,
+            1.5
+            if re.search(
+                r"\b(?:rag|retrieval-augmented generation|multi-agent|ai agent)\b",
+                experience_text,
+                re.IGNORECASE,
+            )
+            else 0,
+        ),
+        (
+            "document and multimodal AI",
+            1.25,
+            1.25
+            if re.search(
+                r"\b(?:document intelligence|docling|ocr|vlms?|vision-language)\b",
+                experience_text,
+                re.IGNORECASE,
+            )
+            else 0,
+        ),
+        (
+            "production AI engineering",
+            1.5,
+            1.5
+            if re.search(
+                r"\b(?:cloud infrastructure|gcp|aws|pub/sub|production|\d[\d,]*\+ documents)\b",
+                experience_text,
+                re.IGNORECASE,
+            )
+            else 0,
+        ),
+        (
+            "evaluation and reliability",
+            1.0,
+            1.0
+            if re.search(
+                r"\b(?:evaluated|ground-truth|accuracy|task-specific metrics|output normalization)\b",
+                experience_text,
+                re.IGNORECASE,
+            )
+            else 0,
+        ),
+    ]
+    framework_evidence = bool(
+        re.search(
+            r"\b(?:pytorch|tensorflow|scikit-learn|machine learning|deep learning)\b",
+            document_text,
+            re.IGNORECASE,
+        )
+    )
+    training_evidence = bool(
+        re.search(
+            r"\b(?:fine-tun(?:e|ed|ing)|trained? (?:a |the )?(?:model|network)|model training)\b",
+            document_text,
+            re.IGNORECASE,
+        )
+    )
+    foundations_score = (0.5 if framework_evidence else 0) + (1.0 if training_evidence else 0)
+    criteria.append(("ML and model-development depth", 1.5, min(1.5, foundations_score)))
+    breadth_score = 0 if ai_role_count == 0 else min(1.25, 0.25 + ai_role_count * 0.25)
+    criteria.append(("AI experience breadth", 1.25, breadth_score))
+    ownership_score = (
+        0.5
+        if re.search(
+            r"\b(?:founding engineer|architected|owning|owned|led)\b",
+            experience_text,
+            re.IGNORECASE,
+        )
+        else 0
+    )
+    criteria.append(("ownership", 0.5, ownership_score))
+    score = round(sum(earned for _, _, earned in criteria), 2)
+
+    citations = list(ai_answer["citations"])
+    cited_regions = {citation["region_id"] for citation in citations}
+    supporting_patterns = (
+        re.compile(r"\b(?:evaluated|ground-truth|accuracy|task-specific metrics)\b", re.IGNORECASE),
+        re.compile(r"\b(?:rag|retrieval-augmented generation)\b", re.IGNORECASE),
+    )
+    for pattern in supporting_patterns:
+        for page, region in experience_regions:
+            if region["id"] in cited_regions or not pattern.search(region["text"]):
+                continue
+            citations.append(
+                {
+                    "id": f"citation-{len(citations) + 1}",
+                    "page": page["number"],
+                    "bbox": region["bbox"],
+                    "region_id": region["id"],
+                    "quote": region["text"][:500],
+                    "score": 1.0,
+                }
+            )
+            cited_regions.add(region["id"])
+            break
+
+    breakdown = "; ".join(f"{label}: {earned:g}/{maximum:g}" for label, maximum, earned in criteria)
+    gaps = []
+    if not training_evidence:
+        gaps.append("no explicit custom-model training or fine-tuning")
+    if ai_role_count < 3:
+        gaps.append("AI evidence spans only a limited number of dated roles")
+    gap_text = "; ".join(gaps) if gaps else "no major résumé-evidence gaps in this rubric"
+    return {
+        "question": question,
+        "answer": (
+            f"Resume-only score: {score:g}/10 for an AI engineering role. {breakdown}. "
+            f"Main limitations: {gap_text}. This score measures documented evidence, not interview performance."
+        ),
+        "grounded": True,
+        "method": "resume-ai-role-rubric",
+        "citations": citations,
+        "notice": "The score uses a fixed evidence rubric and preserves citations for the supporting résumé claims.",
+        "score": score,
+        "score_max": 10,
+        "rubric": [
+            {"criterion": label, "earned": earned, "maximum": maximum}
+            for label, maximum, earned in criteria
+        ],
     }
 
 

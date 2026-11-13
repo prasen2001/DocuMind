@@ -186,6 +186,16 @@ def test_ai_experience_diversifies_evidence_across_roles() -> None:
         "fold-ai",
     }
 
+    score_result = answer_question(
+        resume, "Score the candidate out of 10 for an AI engineering role"
+    )
+
+    assert score_result["method"] == "resume-ai-role-rubric"
+    assert score_result["score_max"] == 10
+    assert sum(item["maximum"] for item in score_result["rubric"]) == 10
+    assert "fold-ai" in {citation["region_id"] for citation in score_result["citations"]}
+    assert "interview performance" in score_result["answer"]
+
 
 def test_semantic_ai_question_uses_role_diverse_analysis() -> None:
     resume = {

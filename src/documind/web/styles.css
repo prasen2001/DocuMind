@@ -136,6 +136,14 @@ td { border: 1px solid var(--line); padding: 7px; }
 .suggestion { border: 1px solid var(--line); background: white; padding: 7px 10px; border-radius: 20px; color: var(--moss); cursor: pointer; font-size: 10px; }
 .answer-text { font: 17px/1.6 Georgia, serif; margin: 0 0 24px; }
 .grounding { color: var(--moss); font-size: 10px; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 10px; }
+.score-card { display: grid; grid-template-columns: auto 1fr; gap: 15px; margin: 0 0 18px; padding: 14px; border: 1px solid #b9cfc2; border-radius: 9px; background: #f3f8f4; }
+.score-value { align-self: start; color: var(--moss-dark); font: 700 35px/1 Georgia, serif; white-space: nowrap; }
+.score-value span { color: var(--muted); font: 14px Inter, sans-serif; }
+.score-rubric { display: grid; gap: 5px; }
+.score-rubric div { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px solid #d8e4dc; padding-bottom: 4px; font-size: 9px; }
+.score-rubric div:last-child { border-bottom: 0; padding-bottom: 0; }
+.score-rubric span { color: var(--muted); }
+.score-rubric strong { color: var(--moss-dark); white-space: nowrap; }
 .citation { border: 1px solid var(--line); border-left: 3px solid var(--amber); background: #fbfaf5; padding: 11px; margin: 8px 0; cursor: pointer; border-radius: 0 6px 6px 0; }
 .citation:hover { background: #fff8e9; }
 .citation strong { display: block; color: var(--moss); font-size: 10px; margin-bottom: 5px; }
