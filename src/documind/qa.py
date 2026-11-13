@@ -45,8 +45,10 @@ EXPERIENCE_QUESTION_RE = re.compile(
 )
 AI_EXPERIENCE_QUESTION_RE = re.compile(
     r"(?:\bai\b|artificial intelligence|\bllms?\b|machine learning).{0,80}"
-    r"(?:\bexperience\b|\bbackground\b|\bworked\b|\bwork\b)"
-    r"|(?:\bexperience\b|\bbackground\b|\bworked\b|\bwork\b).{0,80}"
+    r"(?:\bexperience\b|\bbackground\b|\bworked\b|\bwork\b|\bknows?\b|\bknowledge\b|"
+    r"\bfamiliar(?:ity)?\b|\bskills?\b|\bexpertise\b)"
+    r"|(?:\bexperience\b|\bbackground\b|\bworked\b|\bwork\b|\bknows?\b|\bknowledge\b|"
+    r"\bfamiliar(?:ity)?\b|\bskills?\b|\bexpertise\b).{0,80}"
     r"(?:\bai\b|artificial intelligence|\bllms?\b|machine learning)",
     re.IGNORECASE,
 )
@@ -256,7 +258,7 @@ def _answer_ai_experience(document: dict[str, Any], question: str) -> dict[str, 
 
     regions = _experience_regions(document)
     if not regions:
-        return _abstention(question, "I could not find an Experience section to verify AI work.")
+        return None
 
     combined_parts: list[str] = []
     offsets: list[tuple[int, dict[str, Any], dict[str, Any]]] = []

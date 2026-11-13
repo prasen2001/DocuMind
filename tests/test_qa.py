@@ -178,6 +178,14 @@ def test_ai_experience_diversifies_evidence_across_roles() -> None:
         "fold-ai",
     }
 
+    knowledge_result = answer_question(resume, "Does the candidate know AI?")
+
+    assert knowledge_result["method"] == "resume-ai-experience-analysis"
+    assert {citation["region_id"] for citation in knowledge_result["citations"]} == {
+        "insaito-ai",
+        "fold-ai",
+    }
+
 
 def test_semantic_ai_question_uses_role_diverse_analysis() -> None:
     resume = {
