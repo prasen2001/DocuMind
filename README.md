@@ -17,6 +17,8 @@ The current usable vertical slice includes:
 - deterministic reading-order and caption-to-figure/table relationships;
 - vector chart detection with titles, labels, numeric values, and source boxes;
 - evidence-grounded lexical or optional semantic extractive RAG with highlighted source regions;
+- section-aware resume analysis for roles, skills, education, projects, quantified results, and
+  evidence-based candidate scoring, covered by a 30-question regression suite;
 - side-by-side multi-document comparison with isolated evidence per document;
 - persistent human review and an operations panel for jobs, capabilities, latency, and failures;
 - a responsive document intelligence dashboard with no frontend build step.
