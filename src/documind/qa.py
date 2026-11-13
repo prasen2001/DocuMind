@@ -43,6 +43,39 @@ EXPERIENCE_QUESTION_RE = re.compile(
     r"|(?:\byears?\b|\bmonths?\b|\bhow long\b|\btotal\b).*\bexperience\b",
     re.IGNORECASE,
 )
+AI_EXPERIENCE_QUESTION_RE = re.compile(
+    r"(?:\bai\b|artificial intelligence|\bllms?\b|machine learning).{0,80}"
+    r"(?:\bexperience\b|\bbackground\b|\bworked\b|\bwork\b)"
+    r"|(?:\bexperience\b|\bbackground\b|\bworked\b|\bwork\b).{0,80}"
+    r"(?:\bai\b|artificial intelligence|\bllms?\b|machine learning)",
+    re.IGNORECASE,
+)
+AI_EVIDENCE_RE = re.compile(
+    r"\b(?:ai|artificial intelligence|llms?|large language models?|multi-agent|agentic|rag|"
+    r"retrieval-augmented generation|langchain|machine learning|ml inference|model inference|"
+    r"document intelligence|vlms?|vision-language models?)\b",
+    re.IGNORECASE,
+)
+AI_CAPABILITIES = (
+    (re.compile(r"\b(?:multi-agent|agentic|ai agent)\b", re.IGNORECASE), "AI agents"),
+    (
+        re.compile(r"\b(?:rag|retrieval-augmented generation)\b", re.IGNORECASE),
+        "retrieval-augmented generation",
+    ),
+    (
+        re.compile(
+            r"\b(?:document intelligence|ocr|vlms?|vision-language models?)\b", re.IGNORECASE
+        ),
+        "document AI",
+    ),
+    (
+        re.compile(
+            r"\b(?:llms?|large language models?|langchain|model inference)\b", re.IGNORECASE
+        ),
+        "LLM applications",
+    ),
+    (re.compile(r"\bmachine learning\b", re.IGNORECASE), "machine learning"),
+)
 EXPERIENCE_HEADINGS = {"experience", "work experience", "professional experience", "employment"}
 SECTION_HEADINGS = {
     "education",
@@ -102,7 +135,9 @@ def answer_question(
     reference_date: date | None = None,
 ) -> dict[str, Any]:
     """Retrieve answer-sized passages while preserving their exact source regions."""
-    analytical_answer = _answer_experience_duration(document, question, reference_date)
+    analytical_answer = _answer_ai_experience(document, question) or _answer_experience_duration(
+        document, question, reference_date
+    )
     if analytical_answer:
         return analytical_answer
 
@@ -181,7 +216,9 @@ def answer_question_semantic(
     reference_date: date | None = None,
 ) -> dict[str, Any]:
     """Retrieve semantically similar evidence and return only extractive source text."""
-    analytical_answer = _answer_experience_duration(document, question, reference_date)
+    analytical_answer = _answer_ai_experience(document, question) or _answer_experience_duration(
+        document, question, reference_date
+    )
     if analytical_answer:
         return analytical_answer
 
@@ -213,30 +250,91 @@ def answer_question_semantic(
     }
 
 
+def _answer_ai_experience(document: dict[str, Any], question: str) -> dict[str, Any] | None:
+    if not AI_EXPERIENCE_QUESTION_RE.search(question):
+        return None
+
+    regions = _experience_regions(document)
+    if not regions:
+        return _abstention(question, "I could not find an Experience section to verify AI work.")
+
+    combined_parts: list[str] = []
+    offsets: list[tuple[int, dict[str, Any], dict[str, Any]]] = []
+    cursor = 0
+    for page, region in regions:
+        text = region["text"].strip()
+        offsets.append((cursor, page, region))
+        combined_parts.append(text)
+        cursor += len(text) + 1
+    combined = "\n".join(combined_parts)
+    role_dates = list(DATE_RANGE_RE.finditer(combined))
+
+    by_role: dict[int, tuple[dict[str, Any], dict[str, Any], str]] = {}
+    all_matches: list[tuple[dict[str, Any], dict[str, Any], str]] = []
+    for index, (start, page, region) in enumerate(offsets):
+        end = offsets[index + 1][0] - 1 if index + 1 < len(offsets) else len(combined)
+        region_text = combined[start:end]
+        match = AI_EVIDENCE_RE.search(region_text)
+        if not match:
+            continue
+        sentence = _evidence_sentence(region_text, match.start())
+        all_matches.append((page, region, sentence))
+        global_position = start + match.start()
+        role_index = sum(date_match.start() <= global_position for date_match in role_dates) - 1
+        by_role.setdefault(max(0, role_index), (page, region, sentence))
+
+    if not all_matches:
+        return _abstention(
+            question,
+            "I found the Experience section, but no explicit AI, LLM, RAG, agent, or machine-learning evidence.",
+        )
+
+    representative_evidence = list(by_role.values()) if role_dates else all_matches[:3]
+    capabilities = [label for pattern, label in AI_CAPABILITIES if pattern.search(combined)]
+    if not capabilities:
+        capabilities = ["artificial intelligence"]
+    dated_roles = [match.group(0) for index, match in enumerate(role_dates) if index in by_role]
+    role_summary = (
+        f" in {len(dated_roles)} dated roles ({'; '.join(dated_roles)})" if dated_roles else ""
+    )
+    capability_summary = ", ".join(capabilities[:-1])
+    if len(capabilities) > 1:
+        capability_summary += f", and {capabilities[-1]}"
+    elif capabilities:
+        capability_summary = capabilities[0]
+    citations = [
+        {
+            "id": f"citation-{index}",
+            "page": page["number"],
+            "bbox": region["bbox"],
+            "region_id": region["id"],
+            "quote": sentence[:500],
+            "score": 1.0,
+        }
+        for index, (page, region, sentence) in enumerate(representative_evidence, start=1)
+    ]
+    return {
+        "question": question,
+        "answer": (
+            f"Yes. The resume documents AI-related professional work{role_summary}. "
+            f"The cited evidence covers {capability_summary}."
+        ),
+        "grounded": True,
+        "method": "resume-ai-experience-analysis",
+        "citations": citations,
+        "notice": "AI evidence is diversified across dated roles in the Experience section.",
+    }
+
+
 def _answer_experience_duration(
     document: dict[str, Any], question: str, reference_date: date | None
 ) -> dict[str, Any] | None:
     if not EXPERIENCE_QUESTION_RE.search(question):
         return None
 
-    regions = [
-        (page, region)
-        for page in document.get("pages", [])
-        for region in page.get("regions", [])
-        if region.get("text", "").strip()
-    ]
-    in_experience = False
     evidence: list[tuple[dict[str, Any], dict[str, Any], re.Match[str]]] = []
     today = reference_date or date.today()
-    for page, region in regions:
-        normalized = re.sub(r"[^a-z& ]", "", region["text"].lower()).strip()
-        if normalized in EXPERIENCE_HEADINGS:
-            in_experience = True
-            continue
-        if in_experience and normalized in SECTION_HEADINGS:
-            break
-        if not in_experience:
-            continue
+    for page, region in _experience_regions(document):
         evidence.extend((page, region, match) for match in DATE_RANGE_RE.finditer(region["text"]))
 
     intervals: list[tuple[int, int]] = []
@@ -294,6 +392,39 @@ def _format_duration(years: int, months: int) -> str:
     if months:
         parts.append(f"{months} month{'s' if months != 1 else ''}")
     return " and ".join(parts) or "less than one month"
+
+
+def _experience_regions(
+    document: dict[str, Any],
+) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    regions: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    in_experience = False
+    for page in document.get("pages", []):
+        for region in page.get("regions", []):
+            if not region.get("text", "").strip():
+                continue
+            normalized = re.sub(r"[^a-z& ]", "", region["text"].lower()).strip()
+            if normalized in EXPERIENCE_HEADINGS:
+                in_experience = True
+                continue
+            if in_experience and normalized in SECTION_HEADINGS:
+                return regions
+            if in_experience:
+                regions.append((page, region))
+    return regions
+
+
+def _evidence_sentence(text: str, match_start: int) -> str:
+    sentences = [part.strip() for part in SENTENCE_RE.split(text) if part.strip()]
+    if len(sentences) <= 1:
+        return text.strip()
+    cursor = 0
+    for sentence in sentences:
+        position = text.find(sentence, cursor)
+        if position <= match_start < position + len(sentence):
+            return sentence
+        cursor = position + len(sentence)
+    return text.strip()
 
 
 def _abstention(question: str, message: str) -> dict[str, Any]:

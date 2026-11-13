@@ -141,6 +141,72 @@ def test_resume_experience_handles_present_and_overlapping_roles() -> None:
     assert "counted only once" in result["answer"]
 
 
+def test_ai_experience_diversifies_evidence_across_roles() -> None:
+    resume = {
+        **RESUME,
+        "pages": [
+            {
+                **RESUME["pages"][0],
+                "regions": [
+                    *RESUME["pages"][0]["regions"][:4],
+                    {
+                        "id": "insaito-ai",
+                        "type": "paragraph",
+                        "bbox": [10, 116, 400, 135],
+                        "text": "Built an AI agent platform with multi-agent orchestration and RAG.",
+                    },
+                    RESUME["pages"][0]["regions"][4],
+                    {
+                        "id": "fold-ai",
+                        "type": "paragraph",
+                        "bbox": [10, 151, 400, 170],
+                        "text": "Delivered an LLM-powered EHR synopsis using LangChain.",
+                    },
+                    RESUME["pages"][0]["regions"][-1],
+                ],
+            }
+        ],
+    }
+
+    result = answer_question(resume, "Does the candidate have AI experience?")
+
+    assert result["grounded"] is True
+    assert result["method"] == "resume-ai-experience-analysis"
+    assert "2 dated roles" in result["answer"]
+    assert {citation["region_id"] for citation in result["citations"]} == {
+        "insaito-ai",
+        "fold-ai",
+    }
+
+
+def test_semantic_ai_question_uses_role_diverse_analysis() -> None:
+    resume = {
+        **RESUME,
+        "pages": [
+            {
+                **RESUME["pages"][0],
+                "regions": [
+                    *RESUME["pages"][0]["regions"][:-1],
+                    {
+                        "id": "fold-ai",
+                        "type": "paragraph",
+                        "bbox": [10, 151, 400, 170],
+                        "text": "Delivered an LLM-powered clinical application.",
+                    },
+                    RESUME["pages"][0]["regions"][-1],
+                ],
+            }
+        ],
+    }
+
+    result = answer_question_semantic(
+        resume, "Does this person have an LLM background?", encoder=SemanticTestEncoder()
+    )
+
+    assert result["method"] == "resume-ai-experience-analysis"
+    assert result["citations"][0]["region_id"] == "fold-ai"
+
+
 class SemanticTestEncoder:
     def encode(self, texts: Sequence[str]) -> list[list[float]]:
         return [
