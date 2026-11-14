@@ -3,6 +3,16 @@
 DocuMind is a local-first PDF analysis workspace. It extracts text, tables, images, layout,
 and source coordinates, then answers questions with page-level evidence you can inspect.
 
+## Screenshots
+
+### Document workspace
+
+![DocuMind document workspace showing an anonymized resume](docs/assets/documind-dashboard.png)
+
+### Grounded answers with source regions
+
+![DocuMind answer supported by four highlighted source regions](docs/assets/documind-evidence-answer.png)
+
 ## Current milestone
 
 The current usable vertical slice includes:
