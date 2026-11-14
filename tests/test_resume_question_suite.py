@@ -623,3 +623,58 @@ def test_all_forty_third_set_questions_have_relevant_evidence() -> None:
         ), question
         if expected_method.endswith("role-rubric"):
             assert 0 <= result["score"] <= result["score_max"] == 10, question
+
+
+def test_education_answer_is_derived_from_the_uploaded_resume() -> None:
+    document = _resume()
+    document["filename"] = "different-candidate-resume.pdf"
+    education_entries = document["pages"][0]["regions"][1:3]
+    education_entries[0]["text"] = (
+        "North Valley University | MSc in Data Science | Sep 2020 – May 2022"
+    )
+    education_entries[1]["text"] = (
+        "Coastal Technical College | BSc in Mathematics | Aug 2016 – Jun 2020"
+    )
+
+    result = answer_question(document, "What is the candidate's educational background?")
+
+    assert result["method"] == "resume-education-section-analysis"
+    assert "North Valley University" in result["answer"]
+    assert "Master of Science in Data Science" in result["answer"]
+    assert "USC" not in result["answer"]
+    assert {citation["region_id"] for citation in result["citations"]} == {
+        education_entries[0]["id"],
+        education_entries[1]["id"],
+    }
+
+
+def test_non_resume_document_does_not_trigger_resume_analysis() -> None:
+    document = {
+        "id": "research-paper",
+        "filename": "research-paper.pdf",
+        "pages": [
+            {
+                "number": 1,
+                "regions": [
+                    {
+                        "id": "paper-title",
+                        "type": "heading",
+                        "bbox": [10, 10, 500, 30],
+                        "text": "Education and model evaluation study",
+                    },
+                    {
+                        "id": "paper-body",
+                        "type": "paragraph",
+                        "bbox": [10, 40, 500, 90],
+                        "text": "The study evaluates education outcomes using grounded evidence.",
+                    },
+                ],
+            }
+        ],
+    }
+
+    result = answer_question(document, "What does the document say about education?")
+
+    assert result["method"] == "lexical-evidence-retrieval"
+    assert result["grounded"] is True
+    assert "USC" not in result["answer"]

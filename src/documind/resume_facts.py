@@ -45,6 +45,9 @@ PROJECT_HEADINGS = {"projects", "project experience", "personal projects", "sele
 
 def answer_resume_fact(document: dict[str, Any], question: str) -> dict[str, Any] | None:
     """Answer common resume questions using section and role relationships."""
+    if not _looks_like_resume(document):
+        return None
+
     q = question.lower().replace("’", "'")
     roles = _roles(document)
     experience = _section(document, EXPERIENCE_HEADINGS)
@@ -1084,8 +1087,7 @@ def answer_resume_fact(document: dict[str, Any], question: str) -> dict[str, Any
         )
         return _response(
             question,
-            "The resume documents healthcare workflow automation, an LLM-powered EHR synopsis, "
-            "patient-profile integration, and HIPAA-aware access controls.",
+            _evidence_summary("The cited healthcare workflow evidence includes", evidence),
             "resume-healthcare-experience-analysis",
             evidence,
         )
@@ -1094,8 +1096,7 @@ def answer_resume_fact(document: dict[str, Any], question: str) -> dict[str, Any
         evidence = _matching(experience, r"\b(?:scalable|throughput|concurrent|serverless|scale)\b")
         return _response(
             question,
-            "The cited evidence includes a 10× workflow-throughput increase from 20 to 200 "
-            "concurrent workflows and a serverless PDF pipeline supporting 1,000+ concurrent requests.",
+            _evidence_summary("The cited scalability evidence includes", evidence),
             "resume-scalability-analysis",
             evidence,
         )
@@ -1106,8 +1107,7 @@ def answer_resume_fact(document: dict[str, Any], question: str) -> dict[str, Any
         )
         return _response(
             question,
-            "The resume reports up to an 80% reduction in LLM inference costs through prompt "
-            "optimization and response caching, plus compute savings from document caching.",
+            _evidence_summary("The cited cost-reduction evidence includes", evidence),
             "resume-cost-reduction-analysis",
             evidence,
         )
@@ -1116,8 +1116,7 @@ def answer_resume_fact(document: dict[str, Any], question: str) -> dict[str, Any
         evidence = _non_heading(_section(document, EDUCATION_HEADINGS))
         return _response(
             question,
-            "The resume lists a Master of Science in Computer Science at USC and a Bachelor of "
-            "Engineering in Electronics and Telecommunication Engineering.",
+            _education_summary(evidence),
             "resume-education-section-analysis",
             evidence,
         )
@@ -1143,6 +1142,27 @@ def answer_resume_fact(document: dict[str, Any], question: str) -> dict[str, Any
         )
 
     return None
+
+
+def _looks_like_resume(document: dict[str, Any]) -> bool:
+    """Require resume structure before applying specialized resume reasoning."""
+    normalized_regions = {
+        re.sub(r"[^a-z& ]", "", region.get("text", "").lower()).strip()
+        for page in document.get("pages", [])
+        for region in page.get("regions", [])
+        if region.get("text")
+    }
+    has_experience_heading = bool(normalized_regions & EXPERIENCE_HEADINGS)
+    has_supporting_section = bool(
+        normalized_regions & (SKILL_HEADINGS | EDUCATION_HEADINGS | PROJECT_HEADINGS)
+    )
+    filename = str(document.get("filename", "")).lower()
+    resume_filename = bool(re.search(r"(?:^|[_. -])(?:resume|cv)(?:[_. -]|$)", filename))
+    return (
+        has_experience_heading
+        and bool(_roles(document))
+        and (has_supporting_section or resume_filename)
+    )
 
 
 def _section(
@@ -1400,6 +1420,40 @@ def _non_heading(
     regions: list[tuple[dict[str, Any], dict[str, Any]]],
 ) -> list[tuple[dict[str, Any], dict[str, Any]]]:
     return [item for item in regions if item[1].get("type") not in {"heading", "title", "header"}]
+
+
+def _evidence_summary(
+    lead: str,
+    evidence: list[tuple[dict[str, Any], dict[str, Any]]],
+    *,
+    limit: int = 3,
+) -> str:
+    if not evidence:
+        return f"{lead}, but no explicit supporting entry was found."
+    claims = []
+    for item in evidence[:limit]:
+        claim = item[1]["text"].strip().lstrip("•–—- ")
+        claims.append(re.sub(r"(?<=\d)[xX]\b", "×", claim))
+    return f"{lead}: " + "; ".join(claims)
+
+
+def _education_summary(
+    evidence: list[tuple[dict[str, Any], dict[str, Any]]],
+) -> str:
+    if not evidence:
+        return "The resume does not contain an explicit education entry."
+    entries = []
+    for _, region in evidence:
+        text = region["text"].strip().lstrip("•–—- ")
+        text = re.sub(r"\bM\.?S\.?\b", "Master of Science", text, flags=re.IGNORECASE)
+        text = re.sub(r"\bMSc\b", "Master of Science", text, flags=re.IGNORECASE)
+        text = re.sub(r"\bB\.?E\.?\b", "Bachelor of Engineering", text, flags=re.IGNORECASE)
+        text = re.sub(r"\bBSc\b", "Bachelor of Science", text, flags=re.IGNORECASE)
+        entries.append(text)
+    return (
+        f"The resume lists {len(entries)} education entr{'y' if len(entries) == 1 else 'ies'}: "
+        + "; ".join(entries)
+    )
 
 
 def _field_value(evidence: list[tuple[dict[str, Any], dict[str, Any]]], label: str) -> str:
